@@ -27,9 +27,12 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
       
       CRITICAL QUALITY RULE:
       Analyze the depth of the notes. Do NOT repeat questions. If the notes only contain enough distinct facts for fewer than ${numQuestions} high-quality questions, STOP early.
+      🛑 NEVER generate more than ${numQuestions} questions under ANY circumstances.
       
-      FORMAT RULES:
+   FORMAT RULES:
       - Return ONLY a valid JSON array. No markdown formatting, no backticks, no explanations outside the JSON.
+      - 🛑 CRITICAL JSON RULE: Every single key and string value MUST be wrapped in double quotes (e.g., "D": "All of the above"). However, DO NOT put double quotes INSIDE the actual text. If you need to quote a word in a sentence, use single quotes (').
+      - Keep your "explanation" fields concise (1-2 sentences max) to prevent data corruption.
       - Create a mix of "multiple_choice" and "identification".
       - "multiple_choice": Provide EXACTLY 4 choices as a JSON object with keys "A", "B", "C", "D". The answer must be just the letter.
       - "identification": Provide a question that requires a 1-3 word answer. Leave "choices" as an empty object {}.
@@ -92,13 +95,13 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
       .select()
       .single()
 
-    const questionRecords = questions.map(q => ({
+   const questionRecords = questions.map(q => ({
       quiz_id: quiz.id,
       question: q.question,
       choices: q.choices, 
       answer: q.answer,
       explanation: q.explanation,
-      type: q.type 
+      type: q.type // <--- It grabs the exact type the AI generated!
     }))
 
     await supabase.from('questions').insert(questionRecords)
@@ -106,6 +109,34 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
     return { success: true, quizId: quiz.id, questions }
   } catch (error) {
     console.error('Quiz generation error:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ✅ Fetch quizzes securely bypassing RLS
+export async function getUserQuizzes(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select(`*, questions(id, type, question, choices, answer, explanation), documents(file_name)`)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      
+    if (error) throw error;
+    return { success: true, quizzes: data }
+  } catch (error) {
+    console.error("Fetch Quizzes Error:", error);
+    return { success: false, error: error.message }
+  }
+}
+
+// ✅ Delete quizzes securely bypassing RLS
+export async function deleteUserQuiz(quizId) {
+  try {
+    const { error } = await supabase.from('quizzes').delete().eq('id', quizId);
+    if (error) throw error;
+    return { success: true }
+  } catch (error) {
     return { success: false, error: error.message }
   }
 }
