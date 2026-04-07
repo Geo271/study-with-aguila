@@ -73,7 +73,18 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
     }
 
     const cleanJsonString = text.substring(startIndex, endIndex + 1);
-    const questions = JSON.parse(cleanJsonString);
+    
+    // 🌟 NEW: Safely attempt to parse the JSON
+    let questions;
+    try {
+      questions = JSON.parse(cleanJsonString);
+    } catch (parseError) {
+      console.error("The AI generated broken JSON:", parseError);
+      return { 
+        success: false, 
+        error: "The AI got confused while formatting your quiz. Try asking for fewer questions (like 5 or 10)!" 
+      };
+    }
 
     const { data: quiz } = await supabase
       .from('quizzes')

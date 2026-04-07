@@ -180,20 +180,44 @@ export default function Home() {
     }
   }
 
-  // 2. Upgraded to catch keywords AND prevent the black screen crash!
-    const handleSendMessage = async (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault()
     if (!input.trim() || !currentSession) return
     const userMsg = input.trim()
     setInput('')
+
+    // Show the user's message in the chat
     setMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setIsTyping(true)
-    const result = await askDocument(userMsg, currentSession.id, user.id)
-    setIsTyping(false)
-    setMessages(prev => [...prev, {
-      role: 'ai',
-      content: result.success ? result.answer : 'Something went wrong. Try again!'
-    }])
+    
+    try {
+      // 1. Let the AI think about the message normally
+      const result = await askDocument(userMsg, currentSession.id, user.id)
+      setIsTyping(false)
+      
+      if (result?.success) {
+        const aiResponse = result.answer;
+
+        // 2. 🌟 THE NEW AI COMMAND LISTENER 🌟
+        // It ONLY triggers if the AI decided to output the secret code!
+        if (aiResponse.includes('[TRIGGER_QUIZ')) {
+          const numberMatch = aiResponse.match(/\d+/);
+          const aiChosenNumber = numberMatch ? parseInt(numberMatch[0]) : 10;
+          
+          handleGenerateQuiz(aiChosenNumber);
+          return; // Stop here so the secret code doesn't print in the chat
+        }
+
+        // 3. Normal Chat Response
+        setMessages(prev => [...prev, { role: 'ai', content: aiResponse }])
+        
+      } else {
+        setMessages(prev => [...prev, { role: 'ai', content: 'Something went wrong finding the answer.' }])
+      }
+    } catch (error) {
+      setIsTyping(false)
+      setMessages(prev => [...prev, { role: 'ai', content: 'Oops! The server took too long. Try asking again.' }])
+    }
   }
 
   const handleArchive = async (sessionId, e) => {
