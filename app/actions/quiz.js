@@ -61,11 +61,20 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
       ]
     });
 
-    const text = completion.choices[0].message.content;
+    const result = await textModel.generateContent(prompt)
+    const text = result.response.text()
 
-    // Strip any accidental markdown fences and parse
-    const cleaned = text.replace(/```json|```/g, '').trim()
-    const questions = JSON.parse(cleaned)
+    // 🛡️ BULLETPROOF JSON EXTRACTOR
+    // This finds the first '[' and the last ']', ignoring all the polite text outside of it!
+    const startIndex = text.indexOf('[');
+    const endIndex = text.lastIndexOf(']');
+    
+    if (startIndex === -1 || endIndex === -1) {
+      throw new Error("AI did not return a valid quiz array.");
+    }
+
+    const cleanJsonString = text.substring(startIndex, endIndex + 1);
+    const questions = JSON.parse(cleanJsonString);
 
     const { data: quiz } = await supabase
       .from('quizzes')

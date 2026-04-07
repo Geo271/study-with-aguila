@@ -5,6 +5,7 @@ import { extractText, getDocumentProxy } from 'unpdf'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function chunkText(text, chunkSize = 1000, overlap = 200) {
   const chunks = []
@@ -67,11 +68,16 @@ export async function processPDF(formData, userId, sessionId) {
     const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
     const chunkRecords = []
 
-    for (let i = 0; i < chunks.length; i++) {
+   for (let i = 0; i < chunks.length; i++) {
+      
+      // 🛑 THE THROTTLE: Pause for 1 second (1000ms) before each request
+      await delay(1000);
+
       const result = await embeddingModel.embedContent({
         content: { role: 'user', parts: [{ text: chunks[i] }] },
         outputDimensionality: 768
       })
+      
       chunkRecords.push({
         document_id: docData.id,
         content: chunks[i],
