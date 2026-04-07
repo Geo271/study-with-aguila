@@ -236,7 +236,7 @@ export default function Home() {
     <main className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-neutral-900/80 backdrop-blur-md border-b border-neutral-800 px-4 py-3">
+      <header className="sticky top-0 z-50 bg-neutral-900/80 backdrop-blur-md border-b border-neutral-800 px-4 py-3">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
             Study with Aguila 🦅
@@ -379,11 +379,11 @@ export default function Home() {
                     {msg.role === 'ai' && (
                       <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 text-base">🦅</div>
                     )}
-                    <div className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-indigo-600 text-white rounded-br-none'
-                        : 'bg-neutral-800 text-neutral-200 rounded-bl-none border border-neutral-700'
-                    }`}>
+                   <div className={`max-w-[90%] sm:max-w-[78%] rounded-2xl px-3 sm:px-4 py-2 sm:py-3 text-sm leading-relaxed ${
+  msg.role === 'user'
+    ? 'bg-indigo-600 text-white rounded-br-none'
+    : 'bg-neutral-800 text-neutral-200 rounded-bl-none border border-neutral-700'
+}`}>
                       {msg.role === 'user' ? (
                         msg.content.split('\n').map((line, j) => <span key={j}>{line}<br /></span>)
                       ) : (
