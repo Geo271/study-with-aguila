@@ -1,12 +1,12 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin as supabase } from '@/lib/supabase-admin'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 // 1. Keep the '= 5' safety net! It only activates if the frontend fails to send a number.
-export async function generateQuiz(documentId, userId, numQuestions = 5) {
+export async function generateQuiz(documentId, userId, numQuestions = 5, sessionId = null) {
   try {
     // 2. FIXED MODEL NAME: Using the stable 2026 model to prevent 404s
     const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
@@ -67,8 +67,8 @@ export async function generateQuiz(documentId, userId, numQuestions = 5) {
 
     // Save quiz session to database with dynamic title
     const { data: quiz } = await supabase
-      .from('quizzes')
-      .insert([{ document_id: documentId, user_id: userId, title: `${numQuestions}-Question Review` }])
+    .from('quizzes')
+    .insert([{ document_id: documentId, user_id: userId, title: `${numQuestions}-Question Review`, session_id: sessionId }])
       .select()
       .single()
 
