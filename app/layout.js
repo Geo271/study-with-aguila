@@ -11,11 +11,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// 1. Just the SEO text goes here now
 export const metadata = {
   title: "Study with Aguila",
   description: "Your AI-powered academic tutor",
-  // 📱 FIX: Prevents mobile browsers from zooming in accidentally on inputs
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+};
+
+// 2. 📱 The viewport gets its very own dedicated export!
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }) {

@@ -55,7 +55,7 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
 
     // Use Llama 3 via OpenRouter to generate the quiz JSON
     const completion = await openai.chat.completions.create({
-      model: "qmeta-llama/llama-3.1-8b-instruct",
+      model: "meta-llama/llama-3.1-8b-instruct",
       messages: [
         { role: "user", content: prompt }
       ]
