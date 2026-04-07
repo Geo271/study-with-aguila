@@ -118,7 +118,7 @@ export default function Home() {
     await refreshSessions()
   }
 
-  const loadSession = async (session) => {
+ const loadSession = async (session) => {
     setLoadingHistory(true)
     setCurrentSession(session)
     setUploadedDocs(session.session_documents?.map(d => d.document_id) || [])
@@ -165,7 +165,23 @@ export default function Home() {
     await refreshSessions()
   }
 
-  const handleSendMessage = async (e) => {
+  // 1. Upgraded to accept custom numbers!
+ const handleGenerateQuiz = async (num) => {
+    // 🛡️ The Fix: If 'num' is a React Event object (from a button click), ignore it and use 5!
+    const questionCount = typeof num === 'number' ? num : 5;
+    
+    setIsGeneratingQuiz(true)
+    const result = await generateQuiz(uploadedDocs[0], user.id, questionCount, currentSession?.id)
+    setIsGeneratingQuiz(false)
+    
+    if (result?.success) { 
+      setQuizQuestions(result.questions); 
+      setMode('quiz') 
+    }
+  }
+
+  // 2. Upgraded to catch keywords AND prevent the black screen crash!
+    const handleSendMessage = async (e) => {
     e.preventDefault()
     if (!input.trim() || !currentSession) return
     const userMsg = input.trim()
@@ -178,13 +194,6 @@ export default function Home() {
       role: 'ai',
       content: result.success ? result.answer : 'Something went wrong. Try again!'
     }])
-  }
-
-  const handleGenerateQuiz = async () => {
-    setIsGeneratingQuiz(true)
-    const result = await generateQuiz(uploadedDocs[0], user.id, 5, currentSession?.id)
-    setIsGeneratingQuiz(false)
-    if (result.success) { setQuizQuestions(result.questions); setMode('quiz') }
   }
 
   const handleArchive = async (sessionId, e) => {
@@ -283,7 +292,7 @@ export default function Home() {
         )}
 
         {/* Upload screen */}
-        {status === 'idle' && (
+        {(status === 'idle' || status === 'uploading') && (
           <div className="flex-1 flex items-center justify-center">
             <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-800 w-full max-w-md">
               <div className="text-center mb-6">
