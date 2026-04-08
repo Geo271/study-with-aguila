@@ -127,7 +127,7 @@ export default function Signup() {
               <div>
                 <label className="block text-xs font-medium text-neutral-400 mb-1.5 uppercase tracking-wide">Verification code</label>
                 <input type="text" value={otp} onChange={e => setOtp(e.target.value)}
-                  placeholder="Enter code" maxLength={8} required
+                  placeholder="Enter code" maxLength={6} required
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center tracking-[0.4em] text-lg font-mono"/>
               </div>
               <button type="submit" disabled={loading}

@@ -1,79 +1,159 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-const BackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
-    <polyline points="15 18 9 12 15 6"/>
-  </svg>
-)
-
-const MailSentIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-8 h-8 text-indigo-400">
-    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-    <polyline points="16 2 22 8 16 14"/><line x1="10" y1="8" x2="22" y2="8"/>
-  </svg>
-)
+import { supabase } from '@/lib/supabase'
 
 export default function ForgotPassword() {
+  const router = useRouter()
+  const [step, setStep] = useState(1) // 1: Email, 2: OTP & New Password
+  
   const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState(null)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
 
-  const handleReset = async (e) => {
+  // ── STEP 1: SEND OTP ──
+  const handleSendOtp = async (e) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+    setLoading(true); setError(''); setMessage('')
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setStep(2)
+      setMessage('A 6-digit code has been sent to your email.')
+    }
+    setLoading(false)
+  }
+
+  // ── STEP 2: VERIFY OTP & UPDATE PASSWORD ──
+  const handleResetPassword = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError(''); setMessage('')
+
+    // 1. Verify the 6-digit OTP
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'recovery' // 🌟 CRITICAL: Tells Supabase this is a password reset OTP!
     })
-    if (error) { setError(error.message); setLoading(false) }
-    else { setSent(true); setLoading(false) }
+
+    if (verifyError) {
+      setError('Invalid or expired code. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    // 2. If OTP is correct, update the password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    })
+
+    if (updateError) {
+      setError(updateError.message)
+    } else {
+      setMessage('Password updated successfully! Redirecting to login...')
+      setTimeout(() => router.push('/login'), 2000)
+    }
+    setLoading(false)
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8">
-          <Link href="/login" className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-300 transition-colors mb-6">
-            <BackIcon/> Back to login
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Reset password</h1>
-          <p className="text-neutral-500 text-sm mt-1.5">
-            {sent ? 'Check your email for a reset link.' : "Enter your email and we'll send you a reset link."}
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 font-sans text-neutral-100">
+      <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-3xl p-8 shadow-2xl">
+        
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2">Reset Password</h1>
+          <p className="text-sm text-neutral-400">
+            {step === 1 ? "Enter your email to receive a reset code." : "Enter your code and new password."}
           </p>
         </div>
 
-        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-          {!sent ? (
-            <form onSubmit={handleReset} className="space-y-4">
-              {error && <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl p-3">{error}</div>}
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5 uppercase tracking-wide">Email address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" required
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"/>
-              </div>
-              <button type="submit" disabled={loading}
-                className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all text-sm">
-                {loading ? 'Sending...' : 'Send reset link'}
-              </button>
-            </form>
-          ) : (
-            <div className="text-center py-4 space-y-3">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/10 flex items-center justify-center">
-                <MailSentIcon/>
-              </div>
-              <p className="text-neutral-300 text-sm">A reset link was sent to</p>
-              <p className="text-indigo-400 font-semibold text-sm">{email}</p>
-              <p className="text-neutral-600 text-xs">Check your spam folder if you don't see it.</p>
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-xl mb-6 text-center">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="bg-green-500/10 border border-green-500/50 text-green-400 text-sm p-3 rounded-xl mb-6 text-center">
+            {message}
+          </div>
+        )}
+
+        {step === 1 ? (
+          /* ── FORM 1: EMAIL REQUEST ── */
+          <form onSubmit={handleSendOtp} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5 ml-1">Email Address</label>
+              <input 
+                type="email" 
+                required 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="juan@example.com"
+              />
             </div>
-          )}
+            
+            <button 
+              type="submit" 
+              disabled={loading || !email}
+              className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 mt-4">
+              {loading ? 'Sending Code...' : 'Send Reset Code'}
+            </button>
+          </form>
+        ) : (
+          /* ── FORM 2: OTP & NEW PASSWORD ── */
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5 ml-1">6-Digit Code</label>
+              <input 
+                type="text" 
+                required 
+                value={otp} 
+                onChange={(e) => setOtp(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center tracking-[0.2em] font-mono text-lg"
+                placeholder="123456"
+                maxLength={6}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5 ml-1">New Password</label>
+              <input 
+                type="password" 
+                required 
+                value={newPassword} 
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="••••••••"
+                minLength={6}
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={loading || !otp || !newPassword}
+              className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 mt-4">
+              {loading ? 'Updating...' : 'Set New Password'}
+            </button>
+          </form>
+        )}
+
+        <div className="mt-8 text-center">
+          <Link href="/login" className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+            &larr; Back to Login
+          </Link>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
