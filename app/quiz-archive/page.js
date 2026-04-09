@@ -18,6 +18,7 @@ export default function QuizArchive() {
   const [deletingId, setDeletingId] = useState(null)
   const [search, setSearch] = useState('')
   const router = useRouter()
+  const [expandedQuizId, setExpandedQuizId] = useState(null)
 
   useEffect(() => {
     const load = async () => {
@@ -174,6 +175,18 @@ export default function QuizArchive() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* 🌟 NEW: Quick Look Toggle Button */}
+                      <button
+                        onClick={() => setExpandedQuizId(expandedQuizId === quiz.id ? null : quiz.id)}
+                        className="px-3 py-2 text-xs font-medium text-neutral-400 bg-neutral-800 hover:bg-neutral-700 hover:text-white rounded-xl transition-all flex items-center gap-1.5"
+                      >
+                        {/* SVG arrow that flips when open */}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-3.5 h-3.5 transition-transform ${expandedQuizId === quiz.id ? 'rotate-180' : ''}`}>
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                        {expandedQuizId === quiz.id ? 'Hide preview' : 'Quick look'}
+                      </button>
+
                       <button onClick={() => handleOpenQuiz(quiz)}
                         className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl transition-all font-medium">
                         {Icon.quiz('w-3.5 h-3.5')} Take Quiz
@@ -184,6 +197,30 @@ export default function QuizArchive() {
                       </button>
                     </div>
                   </div>
+
+                  {/* ── 🌟 NEW: The Expandable Preview Area ── */}
+                  {expandedQuizId === quiz.id && (
+                    <div className="mt-4 pt-4 border-t border-neutral-800 space-y-3 animate-fade-in-up">
+                      <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold mb-2">Quiz Questions Preview</p>
+                      
+                      {quiz.questions?.map((q, i) => (
+                        <div key={q.id || i} className="bg-neutral-950 border border-neutral-800/60 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-indigo-400 font-bold text-xs">Q{i + 1}</span>
+                            <span className="text-[10px] text-neutral-500 uppercase border border-neutral-800 px-1.5 py-0.5 rounded">
+                              {q.type?.replace('_', ' ') || 'Question'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-neutral-200 mb-2">{q.question}</p>
+                          
+                          <div className="bg-green-500/10 border border-green-500/20 text-green-400 text-xs px-2.5 py-1.5 rounded inline-block">
+                            <span className="font-semibold">Answer:</span> {q.answer}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                 </div>
               )
             })}

@@ -524,22 +524,34 @@ const handleSend = async (e) => {
   }
 
  const handleGenerateQuiz = async () => {
-  if (autoQuizReady) {
-    setQuizQuestions(autoQuizReady.questions)
-    setQuizId(autoQuizReady.quizId)
-    setMode('quiz')
-    return
+    if (autoQuizReady) {
+      setQuizQuestions(autoQuizReady.questions)
+      setQuizId(autoQuizReady.quizId)
+      setMode('quiz')
+      return
+    }
+    
+    setIsGeneratingQuiz(true)
+    
+    // 🌟 SMART CONTEXT: If no docs are uploaded, bundle the last 10 chat messages together!
+    let chatContext = null;
+    if (!uploadedDocs.length) {
+      chatContext = messages.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+    }
+
+    // Pass the first doc ID (if it exists), or pass the chatContext!
+    const docToPass = uploadedDocs.length > 0 ? uploadedDocs[0] : null;
+    const result = await generateQuiz(docToPass, user.id, 5, currentSession?.id, chatContext)
+    
+    setIsGeneratingQuiz(false)
+    if (result.success) {
+      setQuizQuestions(result.questions)
+      setQuizId(result.quizId)
+      setMode('quiz')
+    } else {
+      setMessages(prev => [...prev, { role: 'ai', content: `Failed to generate quiz: ${result.error}`, isNew: true }])
+    }
   }
-  if (!uploadedDocs.length) return
-  setIsGeneratingQuiz(true)
-  const result = await generateQuiz(uploadedDocs[0], user.id, 5, currentSession?.id)
-  setIsGeneratingQuiz(false)
-  if (result.success) {
-    setQuizQuestions(result.questions)
-    setQuizId(result.quizId)
-    setMode('quiz')
-  }
-}
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -681,10 +693,26 @@ const handleSend = async (e) => {
     <div className="h-[100dvh] bg-neutral-950 text-neutral-100 flex overflow-hidden font-sans">
 
       {/* Hidden file inputs */}
-      <input ref={fileInputRef} type="file" accept="application/pdf" multiple className="hidden"
-        onChange={e => stageFiles(e.target.files, 'pdf')}/>
-      <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden"
-        onChange={e => stageFiles(e.target.files, 'ocr')}/>
+      
+      {/* 1. Document Input (PDF & DOCX) */}
+      <input 
+        ref={fileInputRef} 
+        type="file" 
+        accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+        multiple 
+        className="hidden"
+        onChange={e => stageFiles(e.target.files, 'pdf')}
+      />
+      
+      {/* 2. 🌟 RESTORED: OCR Image Input */}
+      <input 
+        ref={imageInputRef} 
+        type="file" 
+        accept="image/jpeg,image/png,image/webp" 
+        multiple 
+        className="hidden"
+        onChange={e => stageFiles(e.target.files, 'ocr')}
+      />
 
       {/* ── Desktop sidebar ────────────────────────────────────────── */}
       {/* 🌟 FIX: Removed the {isDesktopSidebarOpen &&} wrapper so it can animate! */}
@@ -1105,8 +1133,8 @@ const handleSend = async (e) => {
                 </div>
               )}
 
-              {/* Generate quiz button */}
-              {currentSession && !autoQuizReady && mode === 'chat' && (
+              {/* 🌟 Generate quiz button (Visible if there are notes OR if they have chatted enough) */}
+              {currentSession && !autoQuizReady && mode === 'chat' && (uploadedDocs.length > 0 || messages.length > 2) && (
                 <button
                   onClick={handleGenerateQuiz}
                   disabled={isGeneratingQuiz}
@@ -1114,7 +1142,7 @@ const handleSend = async (e) => {
                 >
                   {isGeneratingQuiz
                     ? <>{Icon.spinner('w-3.5 h-3.5')} Generating quiz...</>
-                    : <>{Icon.quiz('w-3.5 h-3.5')} Generate quiz from notes</>}
+                    : <>{Icon.quiz('w-3.5 h-3.5')} {uploadedDocs.length > 0 ? 'Generate quiz from notes' : 'Generate quiz from chat'}</>}
                 </button>
               )}
 

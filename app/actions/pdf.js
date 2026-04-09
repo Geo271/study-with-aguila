@@ -4,6 +4,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabase-admin'
 import { extractText, getDocumentProxy } from 'unpdf'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { Buffer } from 'buffer'
+import mammoth from 'mammoth'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -44,8 +45,20 @@ export async function processPDF(formData, userId, sessionId) {
       .storage.from('pdfs').upload(fileName, file)
     if (storageError) throw new Error(`Storage error: ${storageError.message}`)
 
-    const pdf = await getDocumentProxy(uint8Array)
-    const { text: extractedText } = await extractText(pdf, { mergePages: true })
+    // 🌟 SMART EXTRACTION: Check the file extension and use the right reader!
+    let extractedText = ''
+    
+    if (file.name.toLowerCase().endsWith('.docx')) {
+      // Use Mammoth for Word Documents
+      const buffer = Buffer.from(arrayBuffer)
+      const result = await mammoth.extractRawText({ buffer })
+      extractedText = result.value
+    } else {
+      // Use unpdf for standard PDFs
+      const pdf = await getDocumentProxy(uint8Array)
+      const extractResult = await extractText(pdf, { mergePages: true })
+      extractedText = extractResult.text
+    }
 
     const { data: docData, error: docError } = await supabase
       .from('documents')

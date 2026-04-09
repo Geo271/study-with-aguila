@@ -103,7 +103,7 @@ STUDENT REQUEST: "${question}"`
     let rawText = ''
     try {
       const completion = await openai.chat.completions.create({
-        model: 'meta-llama/llama-3.1-8b-instruct',
+        model: 'meta-llama/llama-3.3-70b-instruct',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question },

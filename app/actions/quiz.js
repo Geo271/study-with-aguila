@@ -9,33 +9,45 @@ const openai = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 })
 
-export async function generateQuiz(documentId, userId, numQuestions = 5, sessionId = null) {
+// 🌟 NEW: Added chatContext parameter
+export async function generateQuiz(documentId, userId, numQuestions = 5, sessionId = null, chatContext = null) {
   try {
-    const { data: chunks } = await supabase
-      .from('document_chunks')
-      .select('content')
-      .eq('document_id', documentId)
-      .order('chunk_index', { ascending: true })
+    let contextText = ''
 
-    const contextText = chunks.map(c => c.content).join('\n\n')
+    // 🌟 If we have a document, grab the notes from the database
+    if (documentId) {
+      const { data: chunks } = await supabase
+        .from('document_chunks')
+        .select('content')
+        .eq('document_id', documentId)
+        .order('chunk_index', { ascending: true })
+      contextText = chunks?.map(c => c.content).join('\n\n') || ''
+    } 
+    // 🌟 If no document, use the provided chat conversation!
+    else if (chatContext) {
+      contextText = chatContext
+    } 
+    // Failsafe
+    else {
+      return { success: false, error: "No notes or conversation found to generate a quiz." }
+    }
 
     const prompt = `
-      You are an expert exam generator. The user has requested up to ${numQuestions} study questions based on the notes below.
+      You are an expert university professor creating an exam. The user requested EXACTLY ${numQuestions} study questions based on the notes below.
       
       NOTES:
       ${contextText}
       
-      CRITICAL QUALITY RULE:
-      Analyze the depth of the notes. Do NOT repeat questions. If the notes only contain enough distinct facts for fewer than ${numQuestions} high-quality questions, STOP early.
-      🛑 NEVER generate more than ${numQuestions} questions under ANY circumstances.
+      CRITICAL QUALITY RULES:
+      1. HIGH-YIELD CONCEPTS ONLY: Prioritize main ideas, core definitions, formulas, and overarching themes. Ignore trivial details, random dates, or minor examples.
+      2. ZERO HALLUCINATION: Every answer MUST be explicitly supported by the text provided.
+      3. QUANTITY: You MUST generate exactly ${numQuestions} questions. Do not stop early. If the notes are short, create questions that test deeper understanding, application, or different angles of the available facts.
       
-   FORMAT RULES:
-      - Return ONLY a valid JSON array. No markdown formatting, no backticks, no explanations outside the JSON.
-      - 🛑 CRITICAL JSON RULE: Every single key and string value MUST be wrapped in double quotes (e.g., "D": "All of the above"). However, DO NOT put double quotes INSIDE the actual text. If you need to quote a word in a sentence, use single quotes (').
-      - Keep your "explanation" fields concise (1-2 sentences max) to prevent data corruption.
-      - Create a mix of "multiple_choice" and "identification".
-      - "multiple_choice": Provide EXACTLY 4 choices as a JSON object with keys "A", "B", "C", "D". The answer must be just the letter.
-      - "identification": Provide a question that requires a 1-3 word answer. Leave "choices" as an empty object {}.
+      FORMAT RULES:
+      - Return ONLY a valid JSON array. No markdown, no backticks, no text outside the JSON.
+      - CRITICAL JSON RULE: Every key and string value MUST be wrapped in double quotes. Do NOT put double quotes INSIDE the actual text (use single quotes ' ' instead).
+      - "multiple_choice": EXACTLY 4 choices as a JSON object with keys "A", "B", "C", "D". The answer must be just the letter.
+      - "identification": A question requiring a 1-3 word answer. Leave "choices" as {}.
       
       EXACT FORMAT:
       [
@@ -45,20 +57,13 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
           "choices": { "A": "Choice 1", "B": "Choice 2", "C": "Choice 3", "D": "Choice 4" },
           "answer": "A",
           "explanation": "This is correct because..."
-        },
-        {
-          "type": "identification",
-          "question": "The financial metric that evaluates efficiency is called...",
-          "choices": {},
-          "answer": "Return on Investment",
-          "explanation": "ROI measures..."
         }
       ]
     `
 
     // Use Llama 3 via OpenRouter to generate the quiz JSON
     const completion = await openai.chat.completions.create({
-      model: "meta-llama/llama-3.1-8b-instruct",
+      model: "meta-llama/llama-3.3-70b-instruct",
       messages: [
         { role: "user", content: prompt }
       ]
@@ -157,3 +162,4 @@ export async function deleteUserQuiz(quizId) {
   const { error } = await supabase.from('quizzes').delete().eq('id', quizId)
   return { success: !error }
 }
+
