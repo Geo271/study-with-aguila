@@ -1,124 +1,193 @@
 'use client'
 
 import { useState } from 'react'
+import { saveQuizResult, saveWrongAnswers } from '@/app/actions/quiz'
+import { Icon } from '@/components/Icons'
 
-export default function QuizMode({ questions, onFinish, onRetake }) {
+export default function QuizMode({ questions, quizId, userId, onFinish, onRetake }) {
   const [current, setCurrent] = useState(0)
   const [selected, setSelected] = useState('')
   const [showResult, setShowResult] = useState(false)
   const [answers, setAnswers] = useState([])
   const [finished, setFinished] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const question = questions[current]
   const total = questions.length
-  const progress = (current / total) * 100
+  const progress = ((current + (showResult ? 1 : 0)) / total) * 100
 
-  // Smart validation that handles both clicking an option AND typing an answer
   const isCorrectAnswer = (userAnswer, correctAnswer, type) => {
-    if (!userAnswer) return false;
+    if (!userAnswer) return false
     if (type === 'identification') {
-      return userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
+      return userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim()
     }
-    return userAnswer === correctAnswer;
+    return userAnswer === correctAnswer
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const isCorrect = isCorrectAnswer(selected, question.answer, question.type)
-    
     const newAnswers = [...answers, {
       question: question.question,
       selected,
       correct: question.answer,
-      isCorrect: isCorrect
+      isCorrect,
+      type: question.type,
     }]
     setAnswers(newAnswers)
 
     if (current + 1 >= total) {
+      setSaving(true)
+      const score = newAnswers.filter(a => a.isCorrect).length
+      const wrongAnswers = newAnswers.filter(a => !a.isCorrect)
+
+      if (quizId && userId) {
+        await Promise.all([
+          saveQuizResult(quizId, userId, score, total),
+          saveWrongAnswers(quizId, userId, wrongAnswers),
+        ])
+      }
+      setSaving(false)
       setFinished(true)
     } else {
-      setCurrent(current + 1)
+      setCurrent(c => c + 1)
       setSelected('')
       setShowResult(false)
     }
   }
 
+  // ── Results screen ────────────────────────────────────────────────
   if (finished) {
     const score = answers.filter(a => a.isCorrect).length
-    const percentage = Math.round((score / total) * 100)
-    const emoji = percentage >= 80 ? '🏆' : percentage >= 60 ? '👍' : '📚'
-    
+    const pct = Math.round((score / total) * 100)
+    const emoji = pct >= 80 ? '🏆' : pct >= 60 ? '👍' : '📚'
+    const msg = pct >= 80 ? 'Excellent work!' : pct >= 60 ? 'Good effort!' : 'Keep reviewing.'
+    const wrongAnswers = answers.filter(a => !a.isCorrect)
+
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <div className="text-6xl mb-4">{emoji}</div>
-        <h2 className="text-2xl font-bold text-white mb-1">Quiz Complete!</h2>
-        
-        <div className="bg-neutral-800 rounded-2xl p-6 w-full max-w-xs border border-neutral-700 mt-4 mb-6">
-          <div className="text-5xl font-bold text-indigo-400 mb-1">{score}/{total}</div>
-          <div className="text-neutral-400 text-sm mb-4">{percentage}% correct</div>
-        </div>
+      <div className="flex flex-col h-full overflow-y-auto p-5 sm:p-7">
+        {/* Score card */}
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-3">{emoji}</div>
+          <h2 className="text-xl font-bold text-white mb-1">Quiz complete</h2>
+          <p className="text-neutral-500 text-sm">{msg}</p>
 
-        <div className="w-full max-w-lg space-y-2 mb-6 text-left max-h-64 overflow-y-auto pr-2">
-          {answers.map((a, i) => (
-            <div key={i} className={`p-3 rounded-xl border text-sm flex flex-col gap-1 ${
-              a.isCorrect ? 'bg-green-500/10 border-green-500/20 text-green-300' : 'bg-red-500/10 border-red-500/20 text-red-300'
-            }`}>
-              <div className="flex items-start gap-3">
-                <span className="flex-shrink-0 font-bold">{a.isCorrect ? '✓' : '✗'}</span>
-                <span className="font-medium text-white">{a.question}</span>
-              </div>
-              {!a.isCorrect && (
-                <div className="ml-6 text-xs text-red-400/80">
-                  You said: <span className="line-through">{a.selected}</span> <br/>
-                  Correct: <span className="font-bold text-green-400">{a.correct}</span>
-                </div>
-              )}
+          <div className="inline-flex items-center gap-4 bg-neutral-800 border border-neutral-700 rounded-2xl px-6 py-4 mt-4">
+            <div>
+              <div className="text-4xl font-bold text-indigo-400">{score}/{total}</div>
+              <div className="text-xs text-neutral-500 mt-0.5">{pct}% correct</div>
             </div>
-          ))}
+            <div className="w-px h-12 bg-neutral-700"/>
+            <div>
+              <div className="text-2xl font-bold text-green-400">{score}</div>
+              <div className="text-xs text-neutral-500">correct</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-red-400">{wrongAnswers.length}</div>
+              <div className="text-xs text-neutral-500">wrong</div>
+            </div>
+          </div>
+
+          <div className="w-full max-w-xs mx-auto mt-3">
+            <div className="w-full bg-neutral-800 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all duration-700 ${pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="flex gap-3">
-          <button onClick={onRetake} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700">Retake Quiz</button>
-          <button onClick={onFinish} className="px-6 py-2.5 bg-neutral-800 text-neutral-300 rounded-xl text-sm font-medium border border-neutral-700 hover:bg-neutral-700">Back to Chat</button>
+        {/* Wrong answers review */}
+        {wrongAnswers.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center text-red-400 text-xs">!</span>
+              Items to review ({wrongAnswers.length})
+            </h3>
+            <div className="space-y-2">
+              {wrongAnswers.map((a, i) => (
+                <div key={i} className="bg-red-500/8 border border-red-500/20 rounded-xl p-3.5">
+                  <p className="text-sm font-medium text-neutral-200 mb-2">{a.question}</p>
+                  <div className="space-y-1">
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="text-red-400 font-medium flex-shrink-0">Your answer:</span>
+                      <span className="text-red-400 line-through">{a.selected || '(no answer)'}</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="text-green-400 font-medium flex-shrink-0">Correct:</span>
+                      <span className="text-green-300 font-medium">{a.correct}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 mt-auto pt-2">
+          <button
+            onClick={onRetake}
+            className="flex-1 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+          >
+            {Icon.refresh('w-4 h-4')}
+            New quiz
+          </button>
+          <button
+            onClick={onFinish}
+            className="flex-1 py-3 bg-neutral-800 text-neutral-300 text-sm font-medium rounded-xl hover:bg-neutral-700 border border-neutral-700 transition-all"
+          >
+            Back to chat
+          </button>
         </div>
       </div>
     )
   }
 
+  // ── Question screen ───────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full p-6">
-      <div className="mb-6">
+    <div className="flex flex-col h-full p-5 sm:p-7">
+      {/* Progress */}
+      <div className="mb-5">
         <div className="flex justify-between text-xs text-neutral-500 mb-2">
-          <span className="uppercase tracking-wider font-bold text-indigo-400/80">
-            {question.type === 'identification' ? 'Identification' : 'Multiple Choice'}
+          <span className="font-semibold text-indigo-400 uppercase tracking-wide text-xs">
+            {question.type === 'identification' ? 'Identification' : 'Multiple choice'}
           </span>
           <span>Question {current + 1} of {total}</span>
         </div>
-        <div className="w-full bg-neutral-700 rounded-full h-1">
-          <div className="bg-indigo-500 h-1 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+        <div className="w-full bg-neutral-800 rounded-full h-1.5">
+          <div
+            className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
 
-      <h3 className="text-lg font-medium text-white mb-6 leading-relaxed">
+      {/* Question */}
+      <h3 className="text-base sm:text-lg font-medium text-white mb-6 leading-relaxed">
         {question.question}
       </h3>
 
+      {/* Multiple choice */}
       {question.type === 'multiple_choice' && (
-        <div className="space-y-3 mb-6">
+        <div className="space-y-2.5 mb-5">
           {Object.entries(question.choices || {}).map(([letter, opt]) => {
-            let style = 'bg-neutral-800 border-neutral-700 text-neutral-200 hover:border-indigo-500/60'
-            
+            let cls = 'bg-neutral-800 border-neutral-700 text-neutral-200 hover:border-indigo-500/60 cursor-pointer'
             if (showResult) {
-              if (letter === question.answer) style = 'bg-green-500/15 border-green-500/60 text-green-300'
-              else if (letter === selected) style = 'bg-red-500/15 border-red-500/60 text-red-300'
-              else style = 'bg-neutral-800 border-neutral-700/50 text-neutral-500 opacity-50'
+              if (letter === question.answer) cls = 'bg-green-500/15 border-green-500/60 text-green-300 cursor-default'
+              else if (letter === selected) cls = 'bg-red-500/15 border-red-500/60 text-red-300 cursor-default'
+              else cls = 'bg-neutral-800 border-neutral-700/40 text-neutral-600 opacity-50 cursor-default'
             }
-
             return (
-              <button key={letter} onClick={() => { setSelected(letter); setShowResult(true) }} disabled={showResult}
-                className={`w-full text-left px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3 ${style}`}>
-                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors ${
-                  showResult && letter === question.answer ? 'bg-green-500/30' :
-                  showResult && letter === selected ? 'bg-red-500/30' : 'bg-neutral-700/50'
+              <button
+                key={letter}
+                onClick={() => { if (!showResult) { setSelected(letter); setShowResult(true) } }}
+                disabled={!!showResult}
+                className={`w-full text-left px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3 ${cls}`}
+              >
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                  showResult && letter === question.answer ? 'bg-green-500/30 text-green-300' :
+                  showResult && letter === selected ? 'bg-red-500/30 text-red-300' : 'bg-neutral-700 text-neutral-400'
                 }`}>
                   {letter}
                 </span>
@@ -129,43 +198,51 @@ export default function QuizMode({ questions, onFinish, onRetake }) {
         </div>
       )}
 
-      {/* RENDER IDENTIFICATION */}
+      {/* Identification */}
       {question.type === 'identification' && (
-        <div className="mb-6 space-y-4">
-          <input 
-            type="text" 
-            value={selected} 
-            onChange={(e) => setSelected(e.target.value)}
+        <div className="mb-5 space-y-3">
+          <input
+            type="text" value={selected}
+            onChange={e => setSelected(e.target.value)}
             disabled={showResult}
-            placeholder="Type your answer here..."
-            className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-            onKeyDown={(e) => { if(e.key === 'Enter' && selected && !showResult) setShowResult(true) }}
+            placeholder="Type your answer..."
+            onKeyDown={e => { if (e.key === 'Enter' && selected && !showResult) setShowResult(true) }}
+            className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 text-sm"
           />
           {!showResult && (
-            <button onClick={() => setShowResult(true)} disabled={!selected.trim()}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium disabled:opacity-50 hover:bg-indigo-700">
-              Submit Answer
+            <button
+              onClick={() => { if (selected.trim()) setShowResult(true) }}
+              disabled={!selected.trim()}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-indigo-700 transition-all"
+            >
+              Submit answer
             </button>
           )}
-          
           {showResult && (
-            <div className={`p-4 rounded-xl border text-sm ${isCorrectAnswer(selected, question.answer, 'identification') ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
-               <p className="mb-1">Correct Answer: <strong className="text-white">{question.answer}</strong></p>
+            <div className={`p-3.5 rounded-xl border text-sm ${
+              isCorrectAnswer(selected, question.answer, 'identification')
+                ? 'bg-green-500/10 border-green-500/30 text-green-300'
+                : 'bg-red-500/10 border-red-500/30 text-red-300'
+            }`}>
+              Correct answer: <strong className="text-white">{question.answer}</strong>
             </div>
           )}
         </div>
       )}
 
-      {/* EXPLANATION FOOTER */}
+      {/* Explanation + Next */}
       {showResult && (
         <div className="space-y-3 mt-auto">
-          <div className="bg-neutral-800/80 border border-neutral-700 rounded-xl p-4 text-sm text-neutral-300 leading-relaxed">
+          <div className="bg-neutral-800/80 border border-neutral-700/70 rounded-xl p-4 text-sm text-neutral-300 leading-relaxed">
             <span className="font-semibold text-indigo-400">Explanation: </span>
             {question.explanation}
           </div>
-          <button onClick={handleNext}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition-all">
-            {current + 1 >= total ? '🎯 See Results' : 'Next Question →'}
+          <button
+            onClick={handleNext}
+            disabled={saving}
+            className="w-full bg-indigo-600 text-white py-3 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+          >
+            {saving ? <>{Icon.spinner('w-4 h-4')} Saving...</> : current + 1 >= total ? 'See results' : 'Next question'}
           </button>
         </div>
       )}

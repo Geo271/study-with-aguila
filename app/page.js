@@ -16,23 +16,16 @@ import PomodoroTimer from '@/components/PomodoroTimer'
 import AguiMascot from '@/components/AguiMascot'
 import { Icon } from '@/components/Icons'
 import ReactMarkdown from 'react-markdown'
+import mermaid from 'mermaid'
 
 // ── Inline SVG logo ───────────────────────────────────────────────────
 const EagleLogo = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox="0 0 48 52" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <polygon points="14,14 16,6 19,13" fill="#4A2F0A"/>
-    <polygon points="18,12 21,4 24,11" fill="#5C3D11"/>
-    <polygon points="22,11 25,3 28,10" fill="#4A2F0A"/>
-    <ellipse cx="24" cy="23" rx="13" ry="12" fill="#8B5E2A"/>
-    <ellipse cx="25" cy="25" rx="8.5" ry="7.5" fill="#F2DEB0"/>
-    <polygon points="33,22 42,25 33,28" fill="#F5C218"/>
-    <circle cx="29" cy="22" r="3" fill="#1A0800"/>
-    <circle cx="30" cy="21" r="0.8" fill="#fff"/>
-    <ellipse cx="24" cy="42" rx="13" ry="11" fill="#8B5E2A"/>
-    <ellipse cx="24" cy="44" rx="7" ry="7.5" fill="#F2DEB0"/>
-    <path d="M11 38 Q2 44 4 52 Q12 46 19 44" fill="#5C3D11"/>
-    <path d="M37 38 Q46 44 44 52 Q36 46 29 44" fill="#5C3D11"/>
-  </svg>
+  <img 
+    src="/logo.png" 
+    alt="Study with Aguila Logo" 
+    className={`${className} object-contain rounded-full shadow-sm`}
+    style={{ imageRendering: 'pixelated' }} 
+  />
 )
 
 // ── Paper-clip / attachment icon ─────────────────────────────────────
@@ -109,6 +102,105 @@ function SessionItem({ session, isActive, onClick, onArchive, onRestore, isArchi
   )
 }
 
+// 🌟 SMART Mermaid renderer: Only renders when the graph is valid!
+const MermaidDiagram = ({ chart }) => {
+  const [svg, setSvg] = useState('')
+  const [isValid, setIsValid] = useState(false)
+  
+  useEffect(() => {
+    const renderChart = async () => {
+      // 1. Basic check: Mermaid must start with a valid diagram keyword (graph, pie, etc.)
+      const validTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'mindmap', 'timeline'];
+      const firstWord = chart.trim().split(/\s+/)[0];
+      
+      if (!validTypes.includes(firstWord)) {
+        setIsValid(false);
+        return;
+      }
+
+      try {
+        mermaid.initialize({ theme: 'dark', startOnLoad: false, securityLevel: 'loose' })
+        
+        // 2. 🛡️ SILENT PARSE: Check syntax without rendering. 
+        // If this throws, it stays in "typing" mode.
+        await mermaid.parse(chart)
+        
+        // 3. If parsing passes, render the actual SVG
+        const { svg } = await mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, chart)
+        setSvg(svg)
+        setIsValid(true)
+      } catch (err) {
+        // Still typing or invalid syntax — hide the error bombs!
+        setIsValid(false)
+      }
+    }
+    
+    if (chart.trim()) renderChart()
+  }, [chart])
+
+  // While typing or invalid: Show a cool "Matrix-style" code box
+  if (!isValid || !svg) {
+    return (
+      <div className="my-4 bg-neutral-900 border border-neutral-800 p-4 rounded-xl font-mono text-[10px] text-indigo-400/80 whitespace-pre-wrap border-l-4 border-l-indigo-500/50">
+        <div className="flex items-center gap-2 mb-2 text-neutral-500 uppercase tracking-widest text-[9px] font-bold">
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+          Building Visual...
+        </div>
+        {chart}
+        <span className="animate-pulse text-indigo-500 font-bold ml-0.5">_</span>
+      </div>
+    )
+  }
+
+  // Once valid: Show the beautiful chart!
+  return (
+    <div 
+      className="my-4 bg-neutral-900/50 p-4 rounded-xl border border-neutral-700 flex justify-center overflow-x-auto animate-fade-in-up"
+      dangerouslySetInnerHTML={{ __html: svg }} 
+    />
+  )
+}
+
+const MarkdownRenderer = ({ content }) => (
+  <div className="overflow-x-hidden break-words prose prose-invert prose-sm max-w-none">
+    <ReactMarkdown
+      components={{
+        p: ({ node, ...props }) => <p className="mb-2.5 last:mb-0" {...props}/>,
+        ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2.5 space-y-1" {...props}/>,
+        ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2.5 space-y-1" {...props}/>,
+        li: ({ node, ...props }) => <li className="text-neutral-300" {...props}/>,
+        strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props}/>,
+        code: ({ inline, className, children, ...props }) => {
+          const match = /language-(\w+)/.exec(className || '')
+          if (!inline && match && match[1] === 'mermaid') {
+            return <MermaidDiagram chart={String(children).replace(/\n$/, '')} />
+          }
+          return <code className={`${className || ''} bg-neutral-700 rounded px-1.5 py-0.5 text-xs text-indigo-300`} {...props}>{children}</code>
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  </div>
+)
+
+// 🌟 2. The Typewriter Engine
+const TypewriterMarkdown = ({ content }) => {
+  const [displayed, setDisplayed] = useState('')
+
+  useEffect(() => {
+    let i = 0
+    const timer = setInterval(() => {
+      i += 5 // 🌟 Faster typing jump
+      setDisplayed(content.slice(0, i))
+      if (i >= content.length) clearInterval(timer)
+    }, 15)
+    return () => clearInterval(timer)
+  }, [content])
+
+  return <MarkdownRenderer content={displayed} />
+}
+
 // ── Main component ───────────────────────────────────────────────────
 export default function Home() {
   const router = useRouter()
@@ -116,6 +208,8 @@ export default function Home() {
   // Auth
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [displayName, setDisplayName] = useState('')
+  const [isEditingName, setIsEditingName] = useState(false)
 
   // Sessions
   const [sessions, setSessions] = useState([])
@@ -149,12 +243,14 @@ export default function Home() {
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
   const [quizKey, setQuizKey] = useState(0)
   const [autoQuizReady, setAutoQuizReady] = useState(null)
+  const [quizId, setQuizId] = useState(null)
 
   // Mascot
   const [mascotMood, setMascotMood] = useState('idle')
 
   // UI
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true)
   const [historyTab, setHistoryTab] = useState('active')
   const [showPomodoro, setShowPomodoro] = useState(false)
   const [showFAB, setShowFAB] = useState(false)
@@ -168,6 +264,18 @@ export default function Home() {
       const { accepted } = await checkEulaAccepted(session.user.id)
       if (!accepted) { router.push('/eula'); return }
       setUser(session.user)
+      
+      // 🌟 Check if they have a saved name
+      const savedName = session.user.user_metadata?.display_name
+      
+      if (savedName) {
+        setDisplayName(savedName)
+      } else {
+        // 🌟 FIRST TIME USER: Default to email prefix, but immediately open the editor!
+        setDisplayName(session.user.email.split('@')[0])
+        setIsEditingName(true)
+      }
+      
       setAuthLoading(false)
       await refreshSessions(session.user.id)
     }
@@ -316,7 +424,8 @@ export default function Home() {
       const quizResult = await autoGenerateQuiz(docIds[0], user.id, session.id, firstExtractedText)
       setIsGeneratingQuiz(false)
       if (quizResult.success) {
-        setAutoQuizReady(quizResult.questions)
+        // 🌟 UPDATED: Now stores both questions and the quizId!
+        setAutoQuizReady({ questions: quizResult.questions, quizId: quizResult.quizId })
         setMessages(prev => [...prev, {
           role: 'ai',
           content: `A 5-question quiz has been automatically generated from your notes. Tap **Start Quiz** below to begin.`,
@@ -358,37 +467,50 @@ export default function Home() {
     await refreshSessions()
   }
 
-  // ── Send message ──────────────────────────────────────────────────
-  const handleSend = async (e) => {
+const handleSend = async (e) => {
     e?.preventDefault()
     const msg = input.trim()
-    if (!msg || !currentSession || isTyping) return
+    if (!msg || isTyping) return
 
     cancelRef.current = false
     setInput('')
+    
+    // 🌟 NEW: Auto-create a session if they are just chatting generally!
+    let activeSessionId = currentSession?.id
+    if (!activeSessionId) {
+      // Create a session named after their first message
+      const sessionResult = await createSession(user.id, msg.substring(0, 30) + '...')
+      if (sessionResult.success) {
+        activeSessionId = sessionResult.session.id
+        setCurrentSession(sessionResult.session)
+        setUploadedDocs([]) // No PDFs for this session!
+        await refreshSessions()
+      } else {
+        return // Stop if session creation fails
+      }
+    }
+
     setMessages(prev => [...prev, { role: 'user', content: msg }])
     setIsTyping(true)
     setMascotMood('thinking')
 
-    const result = await askDocument(msg, currentSession.id, user.id)
+    // 🌟 FIX: Use the activeSessionId we just grabbed/created
+    const result = await askDocument(msg, activeSessionId, user.id)
 
     if (cancelRef.current) { setIsTyping(false); setMascotMood('idle'); return }
     setIsTyping(false)
     setMascotMood('idle')
 
     if (result.success) {
-      const answer = result.answer
-      const triggerMatch = answer.match(/\[TRIGGER_QUIZ:(\d+)\]/)
-      if (triggerMatch) {
-        const count = parseInt(triggerMatch[1])
-        setMessages(prev => [...prev, { role: 'ai', content: `Generating a ${count}-question quiz from your notes...` }])
+      if (result.quizTrigger) {
+        setMessages(prev => [...prev, { role: 'ai', content: result.answer, isNew: true }])
         setIsGeneratingQuiz(true)
-        const qr = await generateQuiz(uploadedDocs[0], user.id, count, currentSession.id)
+        const qr = await generateQuiz(uploadedDocs[0], user.id, result.quizTrigger, activeSessionId)
         setIsGeneratingQuiz(false)
-        if (qr.success) { setQuizQuestions(qr.questions); setMode('quiz') }
+        if (qr.success) { setQuizQuestions(qr.questions); setQuizId(qr.quizId); setMode('quiz') }
         return
       }
-      setMessages(prev => [...prev, { role: 'ai', content: answer }])
+      setMessages(prev => [...prev, { role: 'ai', content: result.answer, isNew: true }])
     } else {
       setMessages(prev => [...prev, { role: 'ai', content: 'Something went wrong. Please try again.' }])
     }
@@ -401,18 +523,35 @@ export default function Home() {
     setMessages(prev => [...prev, { role: 'ai', content: 'Response cancelled.' }])
   }
 
-  const handleGenerateQuiz = async () => {
-    if (autoQuizReady) { setQuizQuestions(autoQuizReady); setMode('quiz'); return }
-    if (!uploadedDocs.length) return
-    setIsGeneratingQuiz(true)
-    const result = await generateQuiz(uploadedDocs[0], user.id, 5, currentSession?.id)
-    setIsGeneratingQuiz(false)
-    if (result.success) { setQuizQuestions(result.questions); setMode('quiz') }
+ const handleGenerateQuiz = async () => {
+  if (autoQuizReady) {
+    setQuizQuestions(autoQuizReady.questions)
+    setQuizId(autoQuizReady.quizId)
+    setMode('quiz')
+    return
   }
+  if (!uploadedDocs.length) return
+  setIsGeneratingQuiz(true)
+  const result = await generateQuiz(uploadedDocs[0], user.id, 5, currentSession?.id)
+  setIsGeneratingQuiz(false)
+  if (result.success) {
+    setQuizQuestions(result.questions)
+    setQuizId(result.quizId)
+    setMode('quiz')
+  }
+}
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  const handleSaveName = async () => {
+    setIsEditingName(false)
+    if (!displayName.trim()) return
+    await supabase.auth.updateUser({
+      data: { display_name: displayName.trim() }
+    })
   }
 
   // ── Loading ───────────────────────────────────────────────────────
@@ -427,18 +566,23 @@ export default function Home() {
   // ── Sidebar content (shared between desktop + mobile) ─────────────
   const SidebarContent = () => (
     <>
-      {/* Logo */}
-      <div className="flex-shrink-0 p-4 border-b border-neutral-800 flex items-center justify-between">
+      {/* Logo and Close Buttons */}
+      <div className="flex-shrink-0 px-4 border-b border-neutral-800 flex items-center justify-between h-14">
         <div className="flex items-center gap-2.5">
           <EagleLogo className="w-6 h-6"/>
           <span className="font-bold text-white text-sm leading-tight">Menu</span>
         </div>
-        {/* Close on mobile */}
+        
+        {/* 🌟 Unified Toggle Close (Desktop & Mobile) */}
         <button
-          onClick={() => setSidebarOpen(false)}
-          className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-800 text-neutral-500 transition-colors"
+          onClick={() => { setSidebarOpen(false); setIsDesktopSidebarOpen(false); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors"
         >
-          {Icon.x('w-4 h-4')}
+          {/* Cool panel-close icon for BOTH devices */}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
         </button>
       </div>
 
@@ -454,7 +598,7 @@ export default function Home() {
       </div>
 
       {/* Session list */}
-      <div className="flex-1 overflow-y-auto px-3 pb-3">
+      <div className="flex-1 overflow-y-auto px-3 pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Tabs */}
         <div className="flex gap-1 mb-2">
           {['active', 'archived'].map(tab => (
@@ -543,31 +687,50 @@ export default function Home() {
         onChange={e => stageFiles(e.target.files, 'ocr')}/>
 
       {/* ── Desktop sidebar ────────────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-60 flex-shrink-0 border-r border-neutral-800 bg-neutral-900/60 h-full overflow-hidden">
-        <SidebarContent/>
+      {/* 🌟 FIX: Removed the {isDesktopSidebarOpen &&} wrapper so it can animate! */}
+      <aside 
+        className={`hidden md:flex flex-col flex-shrink-0 border-neutral-800 bg-neutral-900/60 h-full transition-all duration-300 ease-in-out overflow-hidden ${
+          isDesktopSidebarOpen ? 'w-60 border-r opacity-100' : 'w-0 border-r-0 opacity-0'
+        }`}
+      >
+        <div className="w-60 h-full flex flex-col">
+          <SidebarContent/>
+        </div>
       </aside>
 
       {/* ── Mobile sidebar overlay ────────────────────────────────── */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSidebarOpen(false)}/>
-          <aside className="relative w-72 max-w-[85vw] flex flex-col bg-neutral-900 border-r border-neutral-800 h-full overflow-hidden z-10">
+      {/* 🌟 FIX: Removed the {sidebarOpen &&} wrapper so it can animate! */}
+      <div className={`fixed inset-0 z-50 flex md:hidden transition-all duration-300 ${sidebarOpen ? 'visible' : 'invisible pointer-events-none'}`}>
+        <div 
+          className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`} 
+          onClick={() => setSidebarOpen(false)}
+        />
+        <aside 
+          className={`relative w-72 max-w-[85vw] flex flex-col bg-neutral-900 border-r border-neutral-800 h-full overflow-hidden z-10 transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        >
+          <div className="w-72 max-w-[85vw] h-full flex flex-col">
             <SidebarContent/>
-          </aside>
-        </div>
-      )}
+          </div>
+        </aside>
+      </div>
 
       {/* ── Main area ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Sticky header */}
         <header className="flex-shrink-0 h-14 bg-neutral-900/95 backdrop-blur border-b border-neutral-800 flex items-center px-3 sm:px-4 gap-2 z-10">
-          {/* Hamburger (mobile only) */}
+          {/* 🌟 Unified Hamburger Button (Mobile + Desktop) */}
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all flex-shrink-0"
+            onClick={() => { setSidebarOpen(true); setIsDesktopSidebarOpen(true); }}
+            className={`w-9 h-9 items-center justify-center rounded-xl hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all flex-shrink-0 mr-1 ${
+              isDesktopSidebarOpen ? 'flex md:hidden' : 'flex'
+            }`}
           >
-            {Icon.menu('w-5 h-5')}
+            {/* Panel-open icon for BOTH devices */}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+            </svg>
           </button>
 
           {/* Title */}
@@ -625,8 +788,19 @@ export default function Home() {
                 <QuizMode
                   key={quizKey}
                   questions={quizQuestions}
+                  quizId={quizId}
+                  userId={user?.id}
                   onFinish={() => { setMode('chat'); setAutoQuizReady(null); setMascotMood('celebrating') }}
-                  onRetake={() => setQuizKey(k => k + 1)}
+                  onRetake={async () => {
+                    setIsGeneratingQuiz(true)
+                    const result = await generateQuiz(uploadedDocs[0], user.id, 5, currentSession?.id)
+                    setIsGeneratingQuiz(false)
+                    if (result.success) {
+                      setQuizQuestions(result.questions)
+                      setQuizId(result.quizId)
+                      setQuizKey(k => k + 1)
+                    }
+                  }}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center p-8 text-center gap-5">
@@ -666,9 +840,40 @@ export default function Home() {
                 <div className="flex flex-col items-center justify-center min-h-full py-8 px-4 text-center">
                   <AguiMascot mood={mascotMood} size="lg" showBubble={true}/>
 
-                  <h2 className="text-2xl font-bold text-white mt-6 mb-1">
-                    {getGreeting()}{user?.email ? `, ${user.email.split('@')[0]}` : ''}
-                  </h2>
+                  {/* 🌟 Editable Greeting */}
+                  <div className="flex items-center justify-center gap-2 mt-6 mb-1">
+                    <h2 className="text-2xl font-bold text-white">
+                      {getGreeting()},
+                    </h2>
+                    
+                    {isEditingName ? (
+                      <input
+                        type="text"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        onBlur={handleSaveName}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                        autoFocus
+                        onFocus={(e) => e.target.select()} /* 🌟 NEW: Auto-highlights the text! */
+                        className="bg-neutral-800 text-white text-2xl font-bold rounded-lg px-2 py-0.5 outline-none w-40 border border-indigo-500 focus:ring-2 focus:ring-indigo-500 text-center"
+                      />
+                    ) : (
+                      <div 
+                        onClick={() => setIsEditingName(true)}
+                        className="flex items-center gap-2 group cursor-pointer hover:bg-neutral-800/50 px-2 py-0.5 rounded-lg transition-colors"
+                        title="Click to change your name"
+                      >
+                        <h2 className="text-2xl font-bold text-white">
+                          {displayName}
+                        </h2>
+                        {/* Pencil icon */}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-neutral-500 text-sm mb-8">
                     Upload your notes and Agui will turn them into a full study experience.
                   </p>
@@ -738,7 +943,8 @@ export default function Home() {
               {currentSession && !loadingHistory && messages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} min-w-0`}
+                  /* 🌟 Added animate-fade-in-up class for smooth rendering! */
+                  className={`flex items-end gap-2 animate-fade-in-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'} min-w-0`}
                 >
                   {msg.role === 'ai' && (
                     <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 self-end">
@@ -753,20 +959,12 @@ export default function Home() {
                     {msg.role === 'user' ? (
                       msg.content.split('\n').map((l, j) => <span key={j}>{l}<br/></span>)
                     ) : (
-                      <div className="overflow-x-hidden break-words prose prose-invert prose-sm max-w-none">
-                        <ReactMarkdown
-                          components={{
-                            p: ({ node, ...props }) => <p className="mb-2.5 last:mb-0" {...props}/>,
-                            ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2.5 space-y-1" {...props}/>,
-                            ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2.5 space-y-1" {...props}/>,
-                            li: ({ node, ...props }) => <li className="text-neutral-300" {...props}/>,
-                            strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props}/>,
-                            code: ({ node, ...props }) => <code className="bg-neutral-700 rounded px-1 py-0.5 text-xs text-indigo-300" {...props}/>,
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
+                      /* 🌟 If it's a new message, type it out. Otherwise, render it instantly! */
+                      msg.isNew ? (
+                        <TypewriterMarkdown content={msg.content} />
+                      ) : (
+                        <MarkdownRenderer content={msg.content} />
+                      )
                     )}
                   </div>
                 </div>
@@ -948,13 +1146,14 @@ export default function Home() {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
-                      if (currentSession) handleSend()
+                      handleSend() /* 🌟 Removed the 'if (currentSession)' check */
                     }
                   }}
-                  placeholder={currentSession ? 'Ask anything about your notes...' : 'Upload notes above to start a session...'}
-                  disabled={!currentSession}
+                  /* 🌟 Updated Placeholder */
+                  placeholder="Ask anything, or upload notes to start a study session..."
+                  /* 🌟 Removed disabled={!currentSession} */
                   rows={1}
-                  className="flex-1 bg-transparent text-sm text-neutral-100 placeholder-neutral-600 resize-none focus:outline-none py-2 px-1 min-w-0 disabled:opacity-40 max-h-32"
+                  className="flex-1 bg-transparent text-sm text-neutral-100 placeholder-neutral-600 resize-none focus:outline-none py-2 px-1 min-w-0 max-h-32"
                   style={{ lineHeight: '1.5' }}
                   onInput={e => {
                     e.target.style.height = 'auto'
@@ -973,11 +1172,11 @@ export default function Home() {
                   </button>
                 ) : (
                   <button
-                    onClick={currentSession ? handleSend : () => fileInputRef.current?.click()}
-                    disabled={currentSession ? !input.trim() : false}
-                    className="w-9 h-9 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-30 transition-all flex items-center justify-center flex-shrink-0"
+                    /* 🌟 Changed onClick to always allow sending OR opening files if empty */
+                    onClick={input.trim() ? handleSend : () => fileInputRef.current?.click()}
+                    className="w-9 h-9 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center flex-shrink-0"
                   >
-                    {currentSession ? Icon.send('w-4 h-4') : Icon.upload('w-4 h-4')}
+                    {input.trim() ? Icon.send('w-4 h-4') : Icon.upload('w-4 h-4')}
                   </button>
                 )}
               </div>

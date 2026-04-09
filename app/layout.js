@@ -13,9 +13,13 @@ const geistMono = Geist_Mono({
 
 // 1. Just the SEO text goes here now
 export const metadata = {
-  title: "Study with Aguila",
-  description: "Your AI-powered academic tutor",
-};
+  title: 'Study with Aguila',
+  description: 'AI-powered study assistant and PDF reviewer',
+  // 🌟 ADD THIS LINE:
+  icons: {
+    icon: '/logo.png',
+  },
+}
 
 // 2. 📱 The viewport gets its very own dedicated export!
 export const viewport = {

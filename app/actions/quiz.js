@@ -113,30 +113,47 @@ export async function generateQuiz(documentId, userId, numQuestions = 5, session
   }
 }
 
-// ✅ Fetch quizzes securely bypassing RLS
-export async function getUserQuizzes(userId) {
-  try {
-    const { data, error } = await supabase
-      .from('quizzes')
-      .select(`*, questions(id, type, question, choices, answer, explanation), documents(file_name)`)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      
-    if (error) throw error;
-    return { success: true, quizzes: data }
-  } catch (error) {
-    console.error("Fetch Quizzes Error:", error);
-    return { success: false, error: error.message }
-  }
+// Save quiz result when user finishes
+export async function saveQuizResult(quizId, userId, score, total, quizTitle) {
+  const { error } = await supabase
+    .from('quiz_results')
+    .insert([{
+      quiz_id: quizId,
+      user_id: userId,
+      score,
+      total,
+      quiz_title: quizTitle || `${total}-Question Quiz`,
+      completed_at: new Date().toISOString(),
+    }])
+  return { success: !error, error: error?.message }
 }
 
-// ✅ Delete quizzes securely bypassing RLS
+// Save individual wrong answers so the AI can use them for targeted review
+export async function saveWrongAnswers(quizId, userId, wrongAnswers) {
+  if (!wrongAnswers.length) return { success: true }
+  const records = wrongAnswers.map(a => ({
+    quiz_id: quizId,
+    user_id: userId,
+    question: a.question,
+    user_answer: a.selected || '',
+    correct_answer: a.correct,
+  }))
+  const { error } = await supabase.from('quiz_wrong_answers').insert(records)
+  return { success: !error }
+}
+
+// Fetch all quizzes (for archive + progress)
+export async function getUserQuizzes(userId) {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select(`*, questions(id, type, question, choices, answer, explanation), documents(file_name)`)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) return { success: false, error: error.message }
+  return { success: true, quizzes: data }
+}
+
 export async function deleteUserQuiz(quizId) {
-  try {
-    const { error } = await supabase.from('quizzes').delete().eq('id', quizId);
-    if (error) throw error;
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: error.message }
-  }
+  const { error } = await supabase.from('quizzes').delete().eq('id', quizId)
+  return { success: !error }
 }
