@@ -45,6 +45,18 @@ const ScanIcon = ({ cls = '' }) => (
   </svg>
 )
 
+// ── 🌟 NEW: Users / Lounge icon ──────────────────────────────────────
+// ── 🌟 UPDATED: Users / Lounge icon (Fixed sizing) ───────────────────
+const UsersIcon = (cls = '') => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" className={cls}>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="9" cy="7" r="4"></circle>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+  </svg>
+)
+
 const getGreeting = () => {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -651,6 +663,7 @@ const handleSend = async (e) => {
       {/* Bottom nav */}
       <div className="flex-shrink-0 border-t border-neutral-800 p-3 space-y-1">
         {[
+          { label: 'Student Lounge', icon: UsersIcon, href: '/lounge' },
           { label: 'Quiz archive', icon: Icon.archive, href: '/quiz-archive' },
           { label: 'My tasks', icon: Icon.quiz, href: '/tasks' },
           { label: 'Progress', icon: Icon.chart, href: '/dashboard' },
@@ -906,8 +919,10 @@ const handleSend = async (e) => {
                     Upload your notes and Agui will turn them into a full study experience.
                   </p>
 
-                  {/* Quick action cards */}
+                 {/* Quick action cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md mb-8">
+                    
+                    {/* 1. Upload PDF Button */}
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="flex items-start gap-3 p-4 bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 rounded-2xl text-left transition-all group"
@@ -921,6 +936,7 @@ const handleSend = async (e) => {
                       </div>
                     </button>
 
+                    {/* 2. Scan Handwritten Notes Button */}
                     <button
                       onClick={() => imageInputRef.current?.click()}
                       className="flex items-start gap-3 p-4 bg-neutral-900 border border-neutral-800 hover:border-teal-500/50 rounded-2xl text-left transition-all group"
@@ -933,6 +949,24 @@ const handleSend = async (e) => {
                         <p className="text-xs text-neutral-500 mt-0.5">OCR reads your handwriting</p>
                       </div>
                     </button>
+
+                    {/* 3. 🌟 Lounge Banner (Spans 2 columns, sits at the bottom) */}
+                    <button
+                      onClick={() => router.push('/lounge')}
+                      className="sm:col-span-2 flex items-center justify-between p-4 bg-indigo-500/10 border border-indigo-500/20 hover:border-indigo-500/40 rounded-2xl text-left transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-500/30 transition-colors">
+                          {UsersIcon('w-4 h-4 text-indigo-400')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-indigo-100">Enter Student Lounge</p>
+                          <p className="text-xs text-indigo-300/70 mt-0.5">Study with friends in a virtual voice room</p>
+                        </div>
+                      </div>
+                      <span className="text-indigo-400 text-xs font-semibold mr-2 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all">Join →</span>
+                    </button>
+                    
                   </div>
 
                   {/* Recent sessions */}
