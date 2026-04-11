@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase'
 import { useLounge } from '@/hooks/useLounge'
 import { getLounge } from '@/app/actions/lounge'
 
+import YouTube from 'react-youtube'
+
 import {
   LiveKitRoom, RoomAudioRenderer, useParticipants,
   useLocalParticipant, useIsSpeaking, TrackToggle,
@@ -42,7 +44,7 @@ const Ic = {
   arrowRight: (cls='w-5 h-5') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>,
 }
 
-// ── CSS animations & Global Styles ─────────────────────────────────────────
+// ── CSS animations ─────────────────────────────────────────────────────────
 const ANIM_CSS = `
 @keyframes avatarWalk {
   0%,100% { transform: translateY(0px) rotate(0deg); }
@@ -60,20 +62,18 @@ const ANIM_CSS = `
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
 
-/* 🌟 FIX 1: Massive pulsing button so they never miss it! */
-.start-audio-btn {
-  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-  z-index: 9999; background: #4f46e5 !important; color: #fff !important;
-  border: 2px solid #818cf8 !important; padding: 12px 24px !important;
-  border-radius: 50px !important; font-size: 14px !important; font-weight: 800 !important;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important; cursor: pointer !important;
-  animation: pulse-ring 2s infinite;
-  white-space: nowrap;
+/* Glowing Header Start Audio Button */
+.header-start-audio {
+  background: #ef4444 !important; color: #fff !important;
+  border: 1px solid #f87171 !important; border-radius: 8px !important;
+  padding: 4px 10px !important; font-size: 11px !important; font-weight: 700 !important;
+  cursor: pointer !important; animation: pulse-audio 1.5s infinite;
+  white-space: nowrap; height: 26px; display: flex; align-items: center;
 }
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(79,70,229, 0.7); }
-  70% { box-shadow: 0 0 0 15px rgba(79,70,229, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(79,70,229, 0); }
+@keyframes pulse-audio {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(239,68,68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239,68,68, 0); }
 }
 `
 
@@ -109,52 +109,22 @@ function SpeakingAvatarInner({ participant, ...props }) {
 }
 
 function BaseAvatar({ x, y, displayName, avatarColor, sprite, isMe, size, isSpeaking, isIdle, isMoving }) {
-  const walkAnim = isMoving
-    ? 'avatarWalk 0.32s ease-in-out infinite'
-    : isIdle ? 'none' : 'avatarIdle 2.5s ease-in-out infinite'
+  const walkAnim = isMoving ? 'avatarWalk 0.32s ease-in-out infinite' : isIdle ? 'none' : 'avatarIdle 2.5s ease-in-out infinite'
 
   return (
-    <div style={{
-      position: 'absolute', left: x, top: y, width: size,
-      transition: isMe ? 'none' : 'left 0.06s linear, top 0.06s linear',
-      zIndex: isMe ? 10 : 5,
-    }}>
+    <div style={{ position: 'absolute', left: x, top: y, width: size, transition: isMe ? 'none' : 'left 0.06s linear, top 0.06s linear', zIndex: isMe ? 10 : 5 }}>
       {isIdle && (
         <div style={{ position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 700, color: '#a78bfa', background: 'rgba(0,0,0,0.75)', borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap', border: '1px solid rgba(167,139,250,0.2)' }}>
           Idle
         </div>
       )}
       <div style={{ animation: walkAnim, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          width: size, height: size,
-          background: sprite ? 'transparent' : avatarColor,
-          borderRadius: 8,
-          boxShadow: isSpeaking ? '0 0 0 3px #4ade80, 0 0 14px rgba(74,222,128,0.35)' : isMe ? '0 0 0 2px rgba(99,102,241,0.5)' : 'none',
-          transform: isSpeaking ? 'scale(1.07)' : 'scale(1)',
-          transition: 'box-shadow 0.12s ease, transform 0.12s ease',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          opacity: isIdle ? 0.45 : 1, overflow: 'hidden',
-          imageRendering: 'pixelated',
-        }}>
-          {sprite
-            ? <img src={sprite} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} />
-            : <span style={{ fontSize: size*0.35, fontWeight: 700, color: '#fff' }}>{(displayName||'?').slice(0,2).toUpperCase()}</span>}
+        <div style={{ width: size, height: size, background: sprite ? 'transparent' : avatarColor, borderRadius: 8, boxShadow: isSpeaking ? '0 0 0 3px #4ade80, 0 0 14px rgba(74,222,128,0.35)' : isMe ? '0 0 0 2px rgba(99,102,241,0.5)' : 'none', transform: isSpeaking ? 'scale(1.07)' : 'scale(1)', transition: 'box-shadow 0.12s ease, transform 0.12s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isIdle ? 0.45 : 1, overflow: 'hidden', imageRendering: 'pixelated' }}>
+          {sprite ? <img src={sprite} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} /> : <span style={{ fontSize: size*0.35, fontWeight: 700, color: '#fff' }}>{(displayName||'?').slice(0,2).toUpperCase()}</span>}
         </div>
-        <div style={{
-          width: size * 0.65, height: 6, borderRadius: '50%',
-          background: 'rgba(0,0,0,0.4)',
-          marginTop: -3, marginLeft: 'auto', marginRight: 'auto',
-          animation: isMoving ? 'shadowWalk 0.32s ease-in-out infinite' : 'none',
-          transformOrigin: 'center',
-        }} />
+        <div style={{ width: size * 0.65, height: 6, borderRadius: '50%', background: 'rgba(0,0,0,0.4)', marginTop: -3, marginLeft: 'auto', marginRight: 'auto', animation: isMoving ? 'shadowWalk 0.32s ease-in-out infinite' : 'none', transformOrigin: 'center' }} />
       </div>
-      <div style={{
-        position: 'absolute', top: size + 9, left: '50%', transform: 'translateX(-50%)',
-        fontSize: 9, fontWeight: 700, whiteSpace: 'nowrap',
-        color: isSpeaking ? '#4ade80' : '#d4d4d8',
-        background: 'rgba(0,0,0,0.82)', borderRadius: 4, padding: '2px 7px',
-        border: `1px solid ${isSpeaking ? 'rgba(74,222,128,0.28)' : 'rgba(255,255,255,0.07)'}`,
-      }}>
+      <div style={{ position: 'absolute', top: size + 9, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 700, whiteSpace: 'nowrap', color: isSpeaking ? '#4ade80' : '#d4d4d8', background: 'rgba(0,0,0,0.82)', borderRadius: 4, padding: '2px 7px', border: `1px solid ${isSpeaking ? 'rgba(74,222,128,0.28)' : 'rgba(255,255,255,0.07)'}` }}>
         {isMe ? `${displayName} (you)` : displayName}
       </div>
     </div>
@@ -316,7 +286,6 @@ function VoiceBar({ onScreenShare, isSharing }) {
   const btnBase = { display:'flex', alignItems:'center', gap:6, borderRadius:9, padding:'4px 10px', fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.15s', flexShrink:0, border:'none' }
 
   return (
-    // 🌟 FIX 2: Added hide-scroll class and overflow-x-auto so all mobile buttons are perfectly swipeable!
     <div className="hide-scroll" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', height:'100%', gap:6, overflowX:'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
         <TrackToggle source={Track.Source.Microphone} disabled={isPTT} style={{ ...btnBase, background:micActive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', border:`1px solid ${micActive ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}`, color:micActive ? '#4ade80' : '#f87171', opacity:isPTT?0.45:1, cursor:isPTT?'not-allowed':'pointer' }}>
@@ -358,7 +327,7 @@ function DPadBtn({ icon, dir, setMovement }) {
   return (
     <button
       onPointerDown={() => setMovement(dir, true)} onPointerUp={() => setMovement(dir, false)} onPointerLeave={() => setMovement(dir, false)} onPointerCancel={() => setMovement(dir, false)}
-      style={{ background:'rgba(9,9,11,0.88)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:12, height:48, width:48, color:'#e4e4e7', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', touchAction:'none', userSelect:'none' }}
+      style={{ background:'rgba(9,9,11,0.88)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:12, height:48, width:48, color:'#e4e4e7', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', touchAction:'none', userSelect:'none', outline: 'none', WebkitTapHighlightColor: 'transparent' }}
     >
       {icon}
     </button>
@@ -389,7 +358,19 @@ function MusicWidget({ globalMusic, setGlobalMusic }) {
         </div>
       </div>
       {!minimized && (
-        <iframe src={embedUrl} width="100%" height={isSpotify ? 152 : 160} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowFullScreen style={{ display:'block' }} />
+        isYT ? (
+          <div style={{ pointerEvents:'auto' }}>
+            <YouTube 
+              videoId={globalMusic.url.includes('videoseries') ? null : globalMusic.url.split('embed/')[1].split('?')[0]}
+              opts={{ height:'152', width:'100%', playerVars: { autoplay:1, controls:1, listType: globalMusic.url.includes('videoseries') ? 'playlist' : undefined, list: globalMusic.url.includes('videoseries') ? new URLSearchParams(globalMusic.url.split('?')[1]).get('list') : undefined } }}
+              onPlay={(e) => setGlobalMusic({ isPlaying: true, time: e.target.getCurrentTime() })}
+              onPause={(e) => setGlobalMusic({ isPlaying: false, time: e.target.getCurrentTime() })}
+              onReady={(e) => { if (!globalMusic.isPlaying) e.target.pauseVideo(); e.target.seekTo(globalMusic.time) }}
+            />
+          </div>
+        ) : (
+          <iframe src={embedUrl} width="100%" height={isSpotify ? 152 : 160} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowFullScreen style={{ display:'block' }} />
+        )
       )}
     </div>
   )
@@ -507,7 +488,7 @@ export default function LoungePage() {
   )
 
   const RoomCanvas = (
-    <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative' }}>
+    <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative', WebkitTapHighlightColor: 'transparent' }}>
 
       {showPresent && (
         <div style={{ width:'60%', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)', display:'flex', flexDirection:'column', background:'#09090b' }}>
@@ -519,14 +500,15 @@ export default function LoungePage() {
         </div>
       )}
 
-      <div ref={scrollViewRef} className="hide-scroll" style={{ flex:1, position:'relative', overflow:'auto', background:'#000', cursor:'grab' }}>
-        <div className="mobile-dpad">
-          <div /><DPadBtn icon={Ic.arrowUp('w-5 h-5')} dir="w" setMovement={setMovement} /><div />
-          <DPadBtn icon={Ic.arrowLeft('w-5 h-5')} dir="a" setMovement={setMovement} />
-          <DPadBtn icon={Ic.arrowDown('w-5 h-5')} dir="s" setMovement={setMovement} />
-          <DPadBtn icon={Ic.arrowRight('w-5 h-5')} dir="d" setMovement={setMovement} />
-        </div>
-        {/* 🌟 FIX 1: backgroundSize is now '100% 100%' so the entire square image perfectly maps to the room without any cropping! */}
+      {/* D-Pad moved OUTSIDE the map so it floats properly and never disappears */}
+      <div className="mobile-dpad">
+        <div /><DPadBtn icon={Ic.arrowUp('w-5 h-5')} dir="w" setMovement={setMovement} /><div />
+        <DPadBtn icon={Ic.arrowLeft('w-5 h-5')} dir="a" setMovement={setMovement} />
+        <DPadBtn icon={Ic.arrowDown('w-5 h-5')} dir="s" setMovement={setMovement} />
+        <DPadBtn icon={Ic.arrowRight('w-5 h-5')} dir="d" setMovement={setMovement} />
+      </div>
+
+      <div ref={scrollViewRef} className="hide-scroll" style={{ flex:1, position:'relative', overflow:'auto', background:'#000', cursor:'grab', outline:'none' }}>
         <div style={{ position:'relative', width:ROOM_WIDTH, height:ROOM_HEIGHT, minWidth:ROOM_WIDTH, minHeight:ROOM_HEIGHT, backgroundImage:`url('/pixel-room.png')`, backgroundSize:'100% 100%', imageRendering:'pixelated', overflow:'visible' }}>
           {Object.entries(otherUsers).map(([uid, data]) => (
             <Avatar key={uid} x={data.x} y={data.y} displayName={data.displayName} avatarColor={data.avatarColor} sprite={data.sprite} size={AVATAR_SIZE} userId={uid} hasVoice={!!token} isIdle={data.isIdle} isMoving={data.isMoving||false} />
@@ -551,8 +533,6 @@ export default function LoungePage() {
     </div>
   )
 
-  // 🌟 FIX 2: Extracted the layout so we can wrap the ENTIRE screen in LiveKitRoom. 
-  // This allows the StartAudio button to live in the Top Header!
   const pageContent = (
     <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:'#09090b', overflow:'hidden', color:'#fff', fontFamily:'system-ui,-apple-system,sans-serif' }}>
       <style>{ANIM_CSS + `
@@ -566,24 +546,10 @@ export default function LoungePage() {
           .chat-container { position:absolute; top:0; right:0; width:88%; max-width:310px; height:100%; z-index:40; box-shadow:-4px 0 20px rgba(0,0,0,0.5); }
           .music-widget { left:auto; right:12px; bottom:16px; width:260px; }
         }
-        
-        /* 🔥 New compact pulsing button for the Header */
-        .header-start-audio {
-          background: #ef4444 !important; color: #fff !important;
-          border: 1px solid #f87171 !important; border-radius: 8px !important;
-          padding: 4px 10px !important; font-size: 11px !important; font-weight: 700 !important;
-          cursor: pointer !important; animation: pulse-audio 1.5s infinite;
-          white-space: nowrap; height: 26px; display: flex; align-items: center;
-        }
-        @keyframes pulse-audio {
-          0% { box-shadow: 0 0 0 0 rgba(239,68,68, 0.6); }
-          70% { box-shadow: 0 0 0 6px rgba(239,68,68, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(239,68,68, 0); }
-        }
       `}</style>
 
-      <div style={{ height:46, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(9,9,11,0.98)', backdropFilter:'blur(12px)', flexShrink:0, zIndex:100 }}>
-        
+      {/* Header */}
+      <div style={{ height:46, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(9,9,11,0.98)', backdropFilter:'blur(12px)', flexShrink:0, zIndex:100, position:'relative' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <Link href="/lounge" style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#52525b', textDecoration:'none', fontWeight:600, padding:'5px 8px', borderRadius:8, border:'1px solid transparent' }} onMouseEnter={e=>{e.currentTarget.style.color='#e4e4e7';e.currentTarget.style.border='1px solid rgba(255,255,255,0.1)'}} onMouseLeave={e=>{e.currentTarget.style.color='#52525b';e.currentTarget.style.border='1px solid transparent'}}>
             {Ic.exit('w-3.5 h-3.5')} <span className="hidden sm:inline">Exit</span>
@@ -595,11 +561,9 @@ export default function LoungePage() {
           </button>
         </div>
 
-        {/* 🌟 FIX 3: Added hide-scroll & overflowX so buttons don't squash on mobile! */}
-        <div className="hide-scroll" style={{ display:'flex', alignItems:'center', gap:7, position:'relative', overflowX:'auto' }}>
-          
-          {/* 🔥 The Start Audio Button now lives cleanly next to Present! */}
-          {token && roomOptions && <StartAudio label=" Enable Audio" className="header-start-audio" />}
+        {/* Right side buttons - hide-scroll for horizontal scrolling on small screens */}
+        <div className="hide-scroll" style={{ display:'flex', alignItems:'center', gap:7, overflowX:'auto' }}>
+          {token && roomOptions && <StartAudio label="🔇 Enable Audio" className="header-start-audio" />}
 
           <button onClick={() => setShowPresent(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:showPresent ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border:`1px solid ${showPresent ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius:8, padding:'4px 10px', cursor:'pointer', color:showPresent ? '#818cf8' : '#71717a', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
             {Ic.screen('w-3.5 h-3.5')} <span className="hidden sm:inline">Present</span>
@@ -608,17 +572,19 @@ export default function LoungePage() {
           <button onClick={() => setShowMusicInput(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:showMusicInput ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'4px 10px', cursor:'pointer', color:'#a1a1aa', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
             {Ic.music('w-3.5 h-3.5')} <span className="hidden sm:inline">Music</span>
           </button>
-          {showMusicInput && (
-            <form onSubmit={handleSetMusic} style={{ position:'absolute', top:42, right:0, background:'#18181b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:12, display:'flex', gap:7, zIndex:200, boxShadow:'0 8px 30px rgba(0,0,0,0.7)' }}>
-              <input value={musicLink} onChange={e=>setMusicLink(e.target.value)} placeholder="YouTube or Spotify URL..." autoFocus style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', borderRadius:8, padding:'7px 11px', fontSize:11, outline:'none', width:220 }} />
-              <button type="submit" style={{ background:'#4f46e5', border:'none', borderRadius:8, padding:'7px 14px', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>Set</button>
-            </form>
-          )}
 
           <button onClick={() => setChatOpen(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:chatOpen ? 'rgba(79,70,229,0.14)' : 'rgba(255,255,255,0.05)', border:`1px solid ${chatOpen ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius:8, padding:'4px 10px', cursor:'pointer', color:chatOpen ? '#818cf8' : '#71717a', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
             {Ic.chat('w-3.5 h-3.5')} Chat
           </button>
         </div>
+
+        {/* Music Form moved OUTSIDE the overflow container so it drops down cleanly! */}
+        {showMusicInput && (
+          <form onSubmit={handleSetMusic} style={{ position:'absolute', top:48, right:12, background:'#18181b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:12, display:'flex', gap:7, zIndex:200, boxShadow:'0 8px 30px rgba(0,0,0,0.7)' }}>
+            <input value={musicLink} onChange={e=>setMusicLink(e.target.value)} placeholder="YouTube or Spotify..." autoFocus style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', borderRadius:8, padding:'7px 11px', fontSize:11, outline:'none', width:'200px', maxWidth:'50vw' }} />
+            <button type="submit" style={{ background:'#4f46e5', border:'none', borderRadius:8, padding:'7px 14px', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>Set</button>
+          </form>
+        )}
       </div>
 
       <div style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
@@ -637,7 +603,6 @@ export default function LoungePage() {
     </div>
   )
 
-  // Wrap the entire screen in LiveKitRoom if token exists, otherwise just render the UI!
   return token && roomOptions ? (
     <LiveKitRoom token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} audio={false} video={false} connect={true} options={roomOptions} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', position:'relative' }}>
       {pageContent}
