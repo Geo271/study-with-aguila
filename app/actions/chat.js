@@ -10,40 +10,68 @@ const openai = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 })
 
-export async function askDocument(question, sessionId, userId) {
+export async function askDocument(question, sessionIdOrDocId, userId) {
   try {
     const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
 
-    // General mode — no session (vacation/general help)
     let contextText = ''
     let docIds = []
+    let fileName = '' // 🌟 NEW: Track the name of the file
 
-    if (sessionId) {
+    if (sessionIdOrDocId) {
+      // 1. Check if this is a Session ID
       const { data: sessionDocs } = await supabase
         .from('session_documents')
         .select('document_id')
-        .eq('session_id', sessionId)
+        .eq('session_id', sessionIdOrDocId)
+      
       docIds = sessionDocs?.map(d => d.document_id) || []
 
+      // 2. Lounge Mode: If no session docs, assume it's a direct Document ID
+      if (docIds.length === 0) {
+        docIds = [sessionIdOrDocId]
+      }
+
+      // 🌟 NEW: Fetch the actual filename so Aguila knows what the file is called!
+      if (docIds.length > 0) {
+        const { data: docInfo } = await supabase
+          .from('documents')
+          .select('file_name')
+          .in('id', docIds)
+          .limit(1)
+        
+        if (docInfo && docInfo[0]) fileName = docInfo[0].file_name
+      }
+
       const isBroad = /quiz|question|summarize|summary|notes|explain|overview/i.test(question)
+      
       if (isBroad) {
         const { data: chunks } = await supabase
-          .from('document_chunks').select('content')
-          .in('document_id', docIds).order('chunk_index', { ascending: true })
+          .from('document_chunks')
+          .select('content')
+          .in('document_id', docIds)
+          .order('chunk_index', { ascending: true })
+        
         contextText = chunks?.map(c => c.content).join('\n\n') || ''
       } else {
         const embRes = await embeddingModel.embedContent({
           content: { role: 'user', parts: [{ text: question }] },
           outputDimensionality: 768,
         })
+        
         let { data: chunks } = await supabase.rpc('match_document_chunks', {
           query_embedding: embRes.embedding.values,
-          match_threshold: 0.2, match_count: 50,
+          match_threshold: 0.2, 
+          match_count: 50,
         })
-        if (chunks?.length) chunks = chunks.filter(c => docIds.includes(c.document_id)).slice(0, 10)
+        
+        if (chunks?.length) {
+          chunks = chunks.filter(c => docIds.includes(c.document_id)).slice(0, 15)
+        }
+        
         if (!chunks?.length) {
           const { data: fb } = await supabase.from('document_chunks').select('content')
-            .in('document_id', docIds).order('chunk_index', { ascending: true }).limit(10)
+            .in('document_id', docIds).order('chunk_index', { ascending: true }).limit(15)
           chunks = fb || []
         }
         contextText = chunks.map(c => c.content).join('\n\n')
@@ -51,54 +79,30 @@ export async function askDocument(question, sessionId, userId) {
     }
 
     const hasNotes = contextText.trim().length > 0
-    const systemPrompt = sessionId && hasNotes
-      ? `You are Aguila, a professional AI academic tutor and study assistant.
+    
+    // 3. 🌟 PERSONA UPDATE: Tell Aguila exactly what file she is reading
+    const systemPrompt = `
+      You are Aguila, a professional AI academic tutor.
+      
+      ${hasNotes ? `You are currently reviewing a document called: "${fileName || 'Uploaded Notes'}"
+      
+      CONTEXT FROM THIS DOCUMENT:
+      """
+      ${contextText}
+      """
+      
+      INSTRUCTIONS:
+      1. Use the notes above as your primary source of truth.
+      2. If the user refers to the "file" or "document," they are talking about "${fileName}".
+      3. Use Markdown (**bold**) for key academic terms.` 
+      
+      : `CRITICAL SAFETY RULE: The user has NOT successfully provided a PDF or notes yet. IF the user asks you to summarize a document, explain a document, or generate a quiz, YOU MUST politely tell them: "I haven't finished memorizing the document yet! Please wait for the ✅ success message in the chat." DO NOT hallucinate or guess the contents of the document.`}
 
-PRIMARY CAPABILITIES:
-1. STUDY TUTOR — Answer based on the student's uploaded notes. Cite sections when possible.
-2. GRAMMAR AND WRITING COACH — When asked to improve grammar/writing, do so thoroughly with explanations.
-3. ASSIGNMENT HELPER — Help understand requirements, brainstorm, outline. Guide — do not write it for them.
-4. RESEARCH COMPANION — Summarize, explain, suggest sources. Cite references when using outside knowledge.
-5. STUDY PLANNER — When asked, output a structured day-by-day study plan.
-6. LANGUAGE SUPPORT — Help rephrase, simplify, or formalize writing.
-
-STRICT RULES:
-- Never use emojis anywhere in your response.
-- Format with clean markdown: **bold** for key terms, numbered lists for steps, bullets for comparisons.
-- 🌟 MERMAID RULE: When the user asks for a chart, graph, flowchart, diagram, or visual representation, YOU MUST output valid Mermaid.js syntax enclosed in a \`\`\`mermaid code block. NEVER use ASCII art or text-based shapes (+, -, |, v) for diagrams.
-- Keep paragraphs to 2-3 sentences maximum.
-- End every study response with one of: "Key takeaway: [one sentence]" OR "Recall prompt: [question to test retention]" OR "Suggested next step: [actionable advice]"
-- Never fabricate citations.
-
-QUIZ TRIGGER RULE — CRITICAL:
-- If the user asks to CREATE, GENERATE, or START a quiz, you MUST reply with ONLY this exact string and nothing else: [TRIGGER_QUIZ:5]
-- Replace 5 with the exact number they requested if they specified one (e.g. "10 questions" → [TRIGGER_QUIZ:10])
-- Do NOT add any other text before or after the trigger string.
-
-CONTEXT FROM NOTES:
-"""
-${contextText}
-"""
-
-STUDENT REQUEST: "${question}"`
-      : `You are Aguila, a professional AI academic tutor and general study assistant.
-
-The student does not have notes uploaded right now. Help them with:
-- General study questions on any subject
-- Grammar and writing improvement
-- Essay and assignment brainstorming
-- Study planning and scheduling
-- Explaining academic concepts clearly
-- Motivation and study habit advice
-
-STRICT RULES:
-- Never use emojis anywhere in your response.
-- Format with clean markdown: **bold** for key terms, bullets for lists.
-- 🌟 MERMAID RULE: When the user asks for a chart, graph, flowchart, diagram, or visual representation, YOU MUST output valid Mermaid.js syntax enclosed in a \`\`\`mermaid code block. NEVER use ASCII art or text-based shapes (+, -, |, v) for diagrams.
-- Keep responses concise and student-friendly.
-- End with one of: "Key takeaway: [one sentence]" OR "Suggested next step: [actionable advice]"
-
-STUDENT REQUEST: "${question}"`
+      STRICT RULES:
+      - Never use emojis.
+      - 🌟 MERMAID RULE: For diagrams/flowcharts, use only \`\`\`mermaid syntax.
+      - End with a "Key takeaway" or "Recall prompt".
+    `
 
     let rawText = ''
     try {
@@ -115,26 +119,24 @@ STUDENT REQUEST: "${question}"`
       rawText = 'Aguila had a hiccup. Please try again.'
     }
 
-    // ── TRIGGER DETECTION (server-side, before saving to DB) ──────────
+    // Handle Quiz Triggers
     const triggerMatch = rawText.match(/\[TRIGGER_QUIZ:(\d+)\]/)
     if (triggerMatch) {
       const quizCount = parseInt(triggerMatch[1])
-      const displayText = `Generating a ${quizCount}-question quiz from your notes...`
-      if (sessionId) {
-        await supabase.from('chat_messages').insert([
-          { session_id: sessionId, user_id: userId, role: 'user', content: question },
-          { session_id: sessionId, user_id: userId, role: 'ai', content: displayText },
-        ])
-      }
-      return { success: true, answer: displayText, quizTrigger: quizCount }
+      return { success: true, answer: `Generating a ${quizCount}-question quiz for the room...`, quizTrigger: quizCount }
     }
 
-    // ── Normal message — save to DB ───────────────────────────────────
-    if (sessionId) {
-      await supabase.from('chat_messages').insert([
-        { session_id: sessionId, user_id: userId, role: 'user', content: question },
-        { session_id: sessionId, user_id: userId, role: 'ai', content: rawText },
-      ])
+    // 🌟 Corrected DB Check: Ensure we don't crash when using UUIDs in the Lounge
+    // Only save to chat_messages if it's a 36-character UUID representing a study session
+    if (sessionIdOrDocId && sessionIdOrDocId.length === 36) {
+        // Verify it's a session ID, not a document ID, before saving
+        const { data: isSession } = await supabase.from('study_sessions').select('id').eq('id', sessionIdOrDocId).maybeSingle()
+        if (isSession) {
+            await supabase.from('chat_messages').insert([
+                { session_id: sessionIdOrDocId, user_id: userId, role: 'user', content: question },
+                { session_id: sessionIdOrDocId, user_id: userId, role: 'ai', content: rawText },
+            ])
+        }
     }
 
     return { success: true, answer: rawText }

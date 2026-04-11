@@ -72,11 +72,13 @@ export async function processPDF(formData, userId, sessionId) {
       .single()
     if (docError) throw new Error(`Database error: ${docError.message}`)
 
-    // ✅ Link this PDF to the session
-    await supabase.from('session_documents').insert([{
-      session_id: sessionId,
-      document_id: docData.id
-    }])
+    // Link to session if one was provided (lounge uploads pass null — that is fine)
+    if (sessionId) {
+      await supabase.from('session_documents').insert([{
+        session_id: sessionId,
+        document_id: docData.id,
+      }])
+    }
 
     const chunks = chunkText(extractedText)
     const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
@@ -197,6 +199,28 @@ Output ONLY the extracted text. No commentary, no "Here is the text:", just the 
     }
   } catch (error) {
     console.error('OCR Error:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Add this to the very bottom of app/actions/pdf.js
+
+export async function uploadChatFile(formData) {
+  try {
+    const file = formData.get('file')
+    if (!file) throw new Error("No file received.")
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+    const fileName = `chat/${Date.now()}-${safeName}`
+
+    // Upload using supabaseAdmin (bypasses RLS security blocks)
+    const { error } = await supabase.storage.from('pdfs').upload(fileName, file)
+    if (error) throw new Error(error.message)
+
+    const { data: { publicUrl } } = supabase.storage.from('pdfs').getPublicUrl(fileName)
+    return { success: true, publicUrl }
+  } catch (error) {
+    console.error("Chat Upload Error:", error)
     return { success: false, error: error.message }
   }
 }

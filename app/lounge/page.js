@@ -19,6 +19,8 @@ export default function LoungeLobby() {
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState('')
   const router = useRouter()
+  
+ 
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
