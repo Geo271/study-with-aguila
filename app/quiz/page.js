@@ -1,12 +1,12 @@
 // app/quiz/page.js
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-export default function QuizDashboard() {
+function QuizDashboardContent() {
   const [quizzes,  setQuizzes]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [deleting, setDeleting] = useState(null)
@@ -139,5 +139,17 @@ export default function QuizDashboard() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function QuizDashboard() {
+  return (
+    <Suspense fallback={
+      <div style={{ height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: '#a1a1aa' }}>
+        Loading dashboard...
+      </div>
+    }>
+      <QuizDashboardContent />
+    </Suspense>
   )
 }
