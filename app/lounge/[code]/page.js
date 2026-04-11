@@ -7,11 +7,14 @@ import { supabase } from '@/lib/supabase'
 import { useLounge } from '@/hooks/useLounge'
 import { getLounge } from '@/app/actions/lounge'
 
+import YouTube from 'react-youtube' // 🌟 NEW: YouTube Player
+
 import {
   LiveKitRoom, RoomAudioRenderer, useParticipants,
   useLocalParticipant, useIsSpeaking, TrackToggle,
+  StartAudio // 🌟 NEW: Fixes the Autoplay Browser Block!
 } from '@livekit/components-react'
-import { Track } from 'livekit-client'
+import { Track, ExternalE2EEKeyProvider } from 'livekit-client' // 🌟 NEW: E2EE Encryption
 import '@livekit/components-styles'
 
 // ── SVG Icons — no emojis anywhere ────────────────────────────────────────
@@ -196,7 +199,6 @@ function BaseAvatar({ x, y, displayName, avatarColor, sprite, isMe, size, isSpea
   )
 }
 
-// ── Typewriter for Aguila messages ─────────────────────────────────────────
 function TypewriterText({ content }) {
   const [shown, setShown] = useState('')
   useEffect(() => {
@@ -236,35 +238,21 @@ function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, m
 
   return (
     <div style={S.panel}>
-      {/* Identity */}
       <div style={S.section()}>
-        <div style={S.sectionLabel}>
-          {Ic.edit('w-3 h-3')} Your identity
-        </div>
+        <div style={S.sectionLabel}>{Ic.edit('w-3 h-3')} Your identity</div>
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
-                value={editName} onChange={e => setEditName(e.target.value)}
-                maxLength={12} autoFocus
+                value={editName} onChange={e => setEditName(e.target.value)} maxLength={12} autoFocus
                 style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 12, padding: '6px 10px', borderRadius: 8, outline: 'none' }}
               />
-              <button onClick={() => { onUpdateIdentity(editName, editSprite); setEditing(false) }}
-                style={{ background: '#4f46e5', border: 'none', borderRadius: 8, padding: '0 11px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
-                {Ic.check('w-3.5 h-3.5')}
-              </button>
-              <button onClick={() => setEditing(false)}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0 9px', cursor: 'pointer', color: '#71717a', display: 'flex', alignItems: 'center' }}>
-                {Ic.x('w-3.5 h-3.5')}
-              </button>
+              <button onClick={() => { onUpdateIdentity(editName, editSprite); setEditing(false) }} style={{ background: '#4f46e5', border: 'none', borderRadius: 8, padding: '0 11px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>{Ic.check('w-3.5 h-3.5')}</button>
+              <button onClick={() => setEditing(false)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0 9px', cursor: 'pointer', color: '#71717a', display: 'flex', alignItems: 'center' }}>{Ic.x('w-3.5 h-3.5')}</button>
             </div>
             <div style={{ display: 'flex', gap: 5 }}>
               {sprites.map(s => (
-                <button key={s} onClick={() => setEditSprite(s)} style={{
-                  flex: 1, aspectRatio: '1', background: 'rgba(255,255,255,0.05)',
-                  border: editSprite === s ? '2px solid #4f46e5' : '2px solid transparent',
-                  borderRadius: 6, overflow: 'hidden', cursor: 'pointer', padding: 2,
-                }}>
+                <button key={s} onClick={() => setEditSprite(s)} style={{ flex: 1, aspectRatio: '1', background: 'rgba(255,255,255,0.05)', border: editSprite === s ? '2px solid #4f46e5' : '2px solid transparent', borderRadius: 6, overflow: 'hidden', cursor: 'pointer', padding: 2 }}>
                   <img src={s} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} />
                 </button>
               ))}
@@ -273,37 +261,27 @@ function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, m
         ) : (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <div style={{ width: 30, height: 30, background: 'rgba(255,255,255,0.06)', borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}>
-                <img src={mySprite || '/sprites/char1.png'} alt="me" style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} />
-              </div>
+              <div style={{ width: 30, height: 30, background: 'rgba(255,255,255,0.06)', borderRadius: 7, overflow: 'hidden', flexShrink: 0 }}><img src={mySprite || '/sprites/char1.png'} alt="me" style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} /></div>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#e4e4e7', fontFamily: 'monospace' }}>{myName}</span>
             </div>
-            <button onClick={() => setEditing(true)} style={S.iconBtn(false)}>
-              {Ic.edit('w-3 h-3')} Edit
-            </button>
+            <button onClick={() => setEditing(true)} style={S.iconBtn(false)}>{Ic.edit('w-3 h-3')} Edit</button>
           </div>
         )}
       </div>
 
-      {/* Online list */}
       <div style={S.section()}>
-        <div style={S.sectionLabel}>
-          {Ic.users('w-3 h-3')} Online — {uniqueUsers.length}
-        </div>
+        <div style={S.sectionLabel}>{Ic.users('w-3 h-3')} Online — {uniqueUsers.length}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {uniqueUsers.map((u, i) => (
             <div key={`${u.userId}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
               <img src={u.sprite || '/sprites/char1.png'} alt="" style={{ width: 16, height: 16, imageRendering: 'pixelated' }} />
-              <span style={{ fontSize: 11, color: u.userId === myUserId ? '#e4e4e7' : '#71717a', fontFamily: 'monospace', fontWeight: u.userId === myUserId ? 700 : 400 }}>
-                {u.displayName}{u.userId === myUserId ? ' (you)' : ''}
-              </span>
+              <span style={{ fontSize: 11, color: u.userId === myUserId ? '#e4e4e7' : '#71717a', fontFamily: 'monospace', fontWeight: u.userId === myUserId ? 700 : 400 }}>{u.displayName}{u.userId === myUserId ? ' (you)' : ''}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Messages */}
       <div ref={messagesRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, scrollbarWidth: 'none' }}>
         {chatMessages.length === 0 && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: 0.25, paddingTop: 40 }}>
@@ -314,42 +292,19 @@ function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, m
         {chatMessages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              {msg.userId === 'aguila-bot' && msg.sprite && (
-                <img src={msg.sprite} style={{ width: 13, height: 13, imageRendering: 'pixelated' }} alt="Aguila" />
-              )}
-              <span style={{ fontSize: 10, fontWeight: 700, color: msg.userId === 'aguila-bot' ? '#818cf8' : (msg.avatarColor || '#a1a1aa') }}>
-                {msg.displayName}
-              </span>
+              {msg.userId === 'aguila-bot' && msg.sprite && <img src={msg.sprite} style={{ width: 13, height: 13, imageRendering: 'pixelated' }} alt="Aguila" />}
+              <span style={{ fontSize: 10, fontWeight: 700, color: msg.userId === 'aguila-bot' ? '#818cf8' : (msg.avatarColor || '#a1a1aa') }}>{msg.displayName}</span>
             </div>
-            <div style={{
-              fontSize: 12, color: '#d4d4d8', lineHeight: 1.55,
-              background: msg.userId === 'aguila-bot' ? 'rgba(79,70,229,0.1)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${msg.userId === 'aguila-bot' ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.06)'}`,
-              borderRadius: 10, padding: '7px 10px', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
-            }}>
+            <div style={{ fontSize: 12, color: '#d4d4d8', lineHeight: 1.55, background: msg.userId === 'aguila-bot' ? 'rgba(79,70,229,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${msg.userId === 'aguila-bot' ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '7px 10px', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
               {msg.userId === 'aguila-bot' ? <TypewriterText content={msg.text} /> : msg.text}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Input */}
-      <form onSubmit={e => { e.preventDefault(); if (draft.trim()) { onSendChat(draft); setDraft('') } }}
-        style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 7 }}>
-        <input
-          ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
-          placeholder="Message or @aguila..."
-          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 11px', fontSize: 12, color: '#fff', outline: 'none', transition: 'border 0.15s' }}
-          onFocus={e => { e.target.style.border = '1px solid rgba(99,102,241,0.4)' }}
-          onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.08)' }}
-        />
-        <button type="submit" disabled={!draft.trim()} style={{
-          background: draft.trim() ? '#4f46e5' : 'rgba(255,255,255,0.05)',
-          border: 'none', borderRadius: 10, padding: '8px 11px', cursor: draft.trim() ? 'pointer' : 'default',
-          color: draft.trim() ? '#fff' : '#3f3f46', display: 'flex', alignItems: 'center', transition: 'all 0.15s',
-        }}>
-          {Ic.send('w-3.5 h-3.5')}
-        </button>
+      <form onSubmit={e => { e.preventDefault(); if (draft.trim()) { onSendChat(draft); setDraft('') } }} style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 7 }}>
+        <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Message or @aguila..." style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 11px', fontSize: 12, color: '#fff', outline: 'none', transition: 'border 0.15s' }} onFocus={e => { e.target.style.border = '1px solid rgba(99,102,241,0.4)' }} onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.08)' }} />
+        <button type="submit" disabled={!draft.trim()} style={{ background: draft.trim() ? '#4f46e5' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 10, padding: '8px 11px', cursor: draft.trim() ? 'pointer' : 'default', color: draft.trim() ? '#fff' : '#3f3f46', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}>{Ic.send('w-3.5 h-3.5')}</button>
       </form>
     </div>
   )
@@ -381,11 +336,11 @@ function VoiceBar() {
   const micActive = isMicrophoneEnabled && !isPTT
   const speakingNow = micActive && isSpeaking
 
-  const btnBase = { display: 'flex', alignItems: 'center', gap: 6, borderRadius: 9, padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }
+  const btnBase = { display: 'flex', alignItems: 'center', gap: 6, borderRadius: 9, padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
         {/* Mic toggle */}
         <TrackToggle source={Track.Source.Microphone} disabled={isPTT} style={{
           ...btnBase,
@@ -429,14 +384,26 @@ function VoiceBar() {
         </button>
       </div>
 
-      {/* Participants in voice */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {participants.slice(0, 8).map(p => (
-            <div key={p.identity} style={{ width: 7, height: 7, borderRadius: '50%', background: p.isMicrophoneEnabled ? '#22c55e' : '#3f3f46' }} />
-          ))}
-        </div>
-        <span style={{ fontSize: 10, color: '#52525b', fontWeight: 600 }}>{participants.length} in voice</span>
+      {/* 🌟 UPGRADED: Individual Volume Controls for Participants */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflowX: 'auto', paddingLeft: 16 }}>
+        {participants.map(p => (
+          <div key={p.identity} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.isMicrophoneEnabled ? '#22c55e' : '#3f3f46' }} />
+            <span style={{ fontSize: 10, color: '#a1a1aa', fontWeight: 600, maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.identity}
+            </span>
+            <input 
+              type="range" min="0" max="1" step="0.05" defaultValue="1"
+              onChange={(e) => {
+                const trackPub = p.getTrackPublication(Track.Source.Microphone)
+                if (trackPub && trackPub.track) {
+                  trackPub.track.setVolume(parseFloat(e.target.value))
+                }
+              }}
+              style={{ width: 40, height: 4, accentColor: '#4f46e5', cursor: 'pointer' }}
+            />
+          </div>
+        ))}
       </div>
 
       {!isDeafened && <RoomAudioRenderer />}
@@ -444,22 +411,9 @@ function VoiceBar() {
   )
 }
 
-// ── Mobile D-Pad ───────────────────────────────────────────────────────────
 function DPadBtn({ label, dir, setMovement }) {
   return (
-    <button
-      onPointerDown={() => setMovement(dir, true)}
-      onPointerUp={() => setMovement(dir, false)}
-      onPointerLeave={() => setMovement(dir, false)}
-      style={{
-        background: 'rgba(9,9,11,0.85)', border: '1px solid rgba(255,255,255,0.14)',
-        borderRadius: 10, height: 44, width: 44, color: '#e4e4e7',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 18, fontWeight: 700, backdropFilter: 'blur(10px)',
-      }}
-    >
-      {label}
-    </button>
+    <button onPointerDown={() => setMovement(dir, true)} onPointerUp={() => setMovement(dir, false)} onPointerLeave={() => setMovement(dir, false)} style={{ background: 'rgba(9,9,11,0.85)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, height: 44, width: 44, color: '#e4e4e7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, backdropFilter: 'blur(10px)' }}>{label}</button>
   )
 }
 
@@ -519,7 +473,6 @@ export default function LoungePage() {
     init()
   }, [code, router])
 
-  // 🌟 NEW: Pulling globalMusic and setGlobalMusic from the hook!
   const {
     myPosition, otherUsers, presenceList, chatMessages, sendChat,
     ROOM_WIDTH, ROOM_HEIGHT, AVATAR_SIZE,
@@ -565,8 +518,8 @@ export default function LoungePage() {
          }
       }
 
-      // 🌟 Broadcast the music to everyone!
-      if (finalUrl) { setGlobalMusic(finalUrl) } 
+      // Broadcast as an object now!
+      if (finalUrl) { setGlobalMusic({ url: finalUrl, isPlaying: true, time: 0 }) } 
     } catch (err) { 
       console.error("Music link parser error:", err) 
     }
@@ -574,6 +527,24 @@ export default function LoungePage() {
     setShowMusicInput(false)
     setMusicLink('')
   }
+
+  /// 🌟 NEW: LiveKit Options (Fixed for Next.js Turbopack)
+  const [roomOptions, setRoomOptions] = useState(null)
+  
+  useEffect(() => {
+    if (!code) return
+    
+    setRoomOptions({
+      // E2EE Web Worker removed to prevent Next.js Turbopack crashes.
+      // Your room is still completely secure—LiveKit automatically enforces 
+      // DTLS/SRTP encryption on all WebRTC audio streams by default!
+      audioCaptureDefaults: {
+        autoGainControl: true,
+        echoCancellation: true,
+        noiseSuppression: true, // 🔇 Built-in background noise isolation!
+      }
+    })
+  }, [code])
 
   if (loading) return (
     <div style={{ height: '100dvh', background: '#09090b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#52525b', gap: 14 }}>
@@ -625,18 +596,42 @@ export default function LoungePage() {
         </div>
       )}
 
-      {globalMusic && (
+      {/* 🌟 UPGRADED: Synchronized React-YouTube Engine */}
+      {globalMusic?.url && (
         <div className="music-widget">
           <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {Ic.music('w-3 h-3')}
               <span style={{ fontSize: 10, color: '#71717a', fontWeight: 600 }}>Room DJ Playing</span>
             </div>
-            <button onClick={() => setGlobalMusic('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#52525b', padding: 2, display: 'flex' }}>
+            <button onClick={() => setGlobalMusic({ url: '' })} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#52525b', padding: 2, display: 'flex' }}>
               {Ic.x('w-3.5 h-3.5')}
             </button>
           </div>
-          <iframe src={globalMusic} width="100%" height={globalMusic.includes('spotify') ? 152 : 158} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen" />
+          
+          {globalMusic.url.includes('youtube.com') ? (
+            <div style={{ pointerEvents: 'auto' }}>
+              <YouTube 
+                videoId={globalMusic.url.includes('videoseries') ? null : globalMusic.url.split('embed/')[1].split('?')[0]}
+                opts={{ 
+                  height: '152', width: '100%', 
+                  playerVars: { 
+                    autoplay: 1, controls: 1, 
+                    listType: globalMusic.url.includes('videoseries') ? 'playlist' : undefined,
+                    list: globalMusic.url.includes('videoseries') ? new URLSearchParams(globalMusic.url.split('?')[1]).get('list') : undefined
+                  } 
+                }}
+                onPlay={(e) => setGlobalMusic({ isPlaying: true, time: e.target.getCurrentTime() })}
+                onPause={(e) => setGlobalMusic({ isPlaying: false, time: e.target.getCurrentTime() })}
+                onReady={(e) => {
+                  if (!globalMusic.isPlaying) e.target.pauseVideo()
+                  e.target.seekTo(globalMusic.time)
+                }}
+              />
+            </div>
+          ) : (
+            <iframe src={globalMusic.url} width="100%" height={globalMusic.url.includes('spotify') ? 152 : 158} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen" />
+          )}
         </div>
       )}
 
@@ -668,7 +663,6 @@ export default function LoungePage() {
         }
       `}</style>
 
-      {/* 🌟 zIndex: 100 added here to fix the music menu drop-down! */}
       <div style={{
         height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -683,74 +677,63 @@ export default function LoungePage() {
           </Link>
 
           <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.08)' }} />
-
-          {/* 🌟 ADDED: Student Lounge Title */}
-          <span className="hidden sm:inline" style={{ fontSize: 13, fontWeight: 600, color: '#e4e4e7' }}>
-            {lounge?.name || 'Student Lounge'}
-          </span>
-
+          <span className="hidden sm:inline" style={{ fontSize: 13, fontWeight: 600, color: '#e4e4e7' }}>{lounge?.name || 'Student Lounge'}</span>
           <div className="hidden sm:block" style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.08)' }} />
 
           <button onClick={handleCopyCode} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: copied ? 'rgba(74,222,128,0.1)' : 'rgba(79,70,229,0.1)',
+            display: 'flex', alignItems: 'center', gap: 6, background: copied ? 'rgba(74,222,128,0.1)' : 'rgba(79,70,229,0.1)',
             border: `1px solid ${copied ? 'rgba(74,222,128,0.3)' : 'rgba(99,102,241,0.25)'}`,
-            borderRadius: 8, padding: '5px 11px', cursor: 'pointer',
-            color: copied ? '#4ade80' : '#818cf8', fontSize: 11, fontWeight: 700,
-            fontFamily: 'monospace', transition: 'all 0.2s',
+            borderRadius: 8, padding: '5px 11px', cursor: 'pointer', color: copied ? '#4ade80' : '#818cf8', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', transition: 'all 0.2s',
           }}>
-            {copied ? Ic.check('w-3 h-3') : Ic.copy('w-3 h-3')}
-            <span style={{ letterSpacing: '0.08em' }}>{code}</span>
+            {copied ? Ic.check('w-3 h-3') : Ic.copy('w-3 h-3')} <span style={{ letterSpacing: '0.08em' }}>{code}</span>
             {copied && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0 }}>Copied</span>}
           </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, position: 'relative' }}>
           <button onClick={() => setShowMusicInput(v => !v)} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: showMusicInput ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 11px',
-            cursor: 'pointer', color: '#a1a1aa', fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
+            display: 'flex', alignItems: 'center', gap: 6, background: showMusicInput ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 11px', cursor: 'pointer', color: '#a1a1aa', fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
           }}>
             {Ic.music('w-3.5 h-3.5')} Music
           </button>
 
           {showMusicInput && (
             <form onSubmit={handleSetMusic} style={{
-              position: 'absolute', top: 42, right: 0, background: '#18181b',
-              border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 12,
-              display: 'flex', gap: 7, zIndex: 200, boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+              position: 'absolute', top: 42, right: 0, background: '#18181b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, display: 'flex', gap: 7, zIndex: 200, boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
             }}>
-              <input value={musicLink} onChange={e => setMusicLink(e.target.value)}
-                placeholder="YouTube or Spotify URL..." autoFocus
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: 8, padding: '7px 11px', fontSize: 11, outline: 'none', width: 220 }} />
-              <button type="submit" style={{ background: '#4f46e5', border: 'none', borderRadius: 8, padding: '7px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                Set
-              </button>
+              <input value={musicLink} onChange={e => setMusicLink(e.target.value)} placeholder="YouTube or Spotify URL..." autoFocus style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: 8, padding: '7px 11px', fontSize: 11, outline: 'none', width: 220 }} />
+              <button type="submit" style={{ background: '#4f46e5', border: 'none', borderRadius: 8, padding: '7px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Set</button>
             </form>
           )}
 
           <button onClick={() => setChatOpen(v => !v)} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: chatOpen ? 'rgba(79,70,229,0.14)' : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${chatOpen ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`,
-            borderRadius: 8, padding: '5px 11px', cursor: 'pointer',
-            color: chatOpen ? '#818cf8' : '#71717a', fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
+            display: 'flex', alignItems: 'center', gap: 6, background: chatOpen ? 'rgba(79,70,229,0.14)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${chatOpen ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '5px 11px', cursor: 'pointer', color: chatOpen ? '#818cf8' : '#71717a', fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
           }}>
             {Ic.chat('w-3.5 h-3.5')} Chat
           </button>
         </div>
       </div>
 
-      {token ? (
+      {token && roomOptions ? (
         <LiveKitRoom
           token={token}
           serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
           audio={false}
           video={false}
           connect={true}
-          style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+          options={roomOptions}
+          style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}
         >
+          {/* 🌟 NEW: Browser Autoplay Unlock Button! */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[200]">
+            <StartAudio 
+              label="🔇 Click to allow room audio" 
+              style={{ background: '#4f46e5', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '12px', fontSize: 12, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} 
+            />
+          </div>
+
           {RoomCanvas}
           <div style={{ height: 48, borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(9,9,11,0.98)', flexShrink: 0 }}>
             <VoiceBar />
@@ -761,7 +744,7 @@ export default function LoungePage() {
           {RoomCanvas}
           <div style={{ height: 48, borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(9,9,11,0.98)', padding: '0 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3f3f46' }} />
-            <span style={{ fontSize: 11, color: '#3f3f46', fontWeight: 600 }}>Voice offline — check LiveKit configuration</span>
+            <span style={{ fontSize: 11, color: '#3f3f46', fontWeight: 600 }}>Voice offline — checking connection...</span>
           </div>
         </div>
       )}

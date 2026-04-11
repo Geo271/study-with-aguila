@@ -6,7 +6,7 @@ import { askDocument } from '@/app/actions/chat'
 
 const ROOM_WIDTH   = 1200 
 const ROOM_HEIGHT  = 680
-const AVATAR_SIZE  = 64
+const AVATAR_SIZE  = 100
 const MOVE_SPEED   = 4    
 const BROADCAST_HZ = 20   
 
@@ -43,7 +43,7 @@ export function useLounge({ loungeCode, user }) {
   const idleTimerRef = useRef(null)
 
   // 🌟 NEW: Synchronized Global Music State
-  const [globalMusic, setGlobalMusicState] = useState('')
+  const [globalMusic, setGlobalMusicState] = useState({ url: '', isPlaying: true, time: 0 })
 
   const userId       = user?.id
   const avatarColor  = getAvatarColor(userId)
@@ -109,10 +109,10 @@ export function useLounge({ loungeCode, user }) {
   }, [wakeUp])
 
   // 🌟 NEW: Function to broadcast music changes to the entire room!
-  const setGlobalMusic = useCallback((url) => {
-    setGlobalMusicState(url)
+  const setGlobalMusic = useCallback((payload) => {
+    setGlobalMusicState(prev => ({ ...prev, ...payload })) // Merge new state
     if (channelRef.current) {
-      channelRef.current.send({ type: 'broadcast', event: 'music', payload: { url } })
+      channelRef.current.send({ type: 'broadcast', event: 'music', payload })
     }
   }, [])
 
@@ -191,8 +191,8 @@ export function useLounge({ loungeCode, user }) {
 
     // 🌟 NEW: Listen for music updates from other users!
     channel.on('broadcast', { event: 'music' }, ({ payload }) => {
-      setGlobalMusicState(payload.url)
-    })
+    setGlobalMusicState(prev => ({ ...prev, ...payload }))
+  })
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
