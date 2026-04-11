@@ -812,7 +812,7 @@ function MusicWidget({ globalMusic, setGlobalMusic }) {
 // Renders fixed over the lounge — the lounge stays mounted underneath.
 // Name, chat history, and avatar position are fully preserved.
 // ─────────────────────────────────────────────────────────────────────────────
-function InLoungeQuiz({ quizId, onClose }) {
+function InLoungeQuiz({ quizId, onClose, presenceList = [] }) {
   const [questions,    setQuestions]    = useState([])
   const [quizTitle,    setQuizTitle]    = useState('')
   const [loading,      setLoading]      = useState(true)
@@ -822,6 +822,13 @@ function InLoungeQuiz({ quizId, onClose }) {
   const [score,        setScore]        = useState(0)
   const [leaderboard,  setLeaderboard]  = useState([])
   const [user,         setUser]         = useState(null)
+
+  // 🌟 FIX: Create a dictionary matching User IDs to their Custom Display Names
+  const nameMap = useMemo(() => {
+    const m = {}
+    presenceList.forEach(u => { if (u.userId) m[u.userId] = u.displayName || u.userId.slice(0,6) })
+    return m
+  }, [presenceList])
 
   useEffect(() => {
     const load = async () => {
@@ -1240,7 +1247,7 @@ const {
       {showPresent && token && <ScreenShareOverlay onClose={() => setShowPresent(false)} />}
 
       {/* In-page quiz overlay — mounts over the lounge, lounge stays alive */}
-      {quizOverlayId && <InLoungeQuiz quizId={quizOverlayId} onClose={() => setQuizOverlayId(null)} />}
+      {quizOverlayId && <InLoungeQuiz quizId={quizOverlayId} onClose={() => setQuizOverlayId(null)} presenceList={presenceList} />}
 
       {/* Header */}
       <div style={{ height:46, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(9,9,11,0.98)', backdropFilter:'blur(12px)', flexShrink:0, zIndex:100, position:'relative' }}>
