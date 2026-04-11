@@ -470,7 +470,17 @@ export default function LoungePage() {
     setMusicLink('')
   }
 
-  const [roomOptions] = useState({ audioCaptureDefaults: { autoGainControl: true, echoCancellation: true, noiseSuppression: true } })
+  const [roomOptions] = useState({ 
+    audioCaptureDefaults: { 
+      autoGainControl: true, 
+      echoCancellation: true, 
+      noiseSuppression: true 
+    },
+    publishDefaults: {
+      red: true, // 🌟 ADD THIS: Eliminates choppy robot voices on bad wifi!
+      audioBitrate: 32000, // High-quality voice bitrate
+    }
+  })
 
   if (loading) return (
     <div style={{ height:'100dvh', background:'#09090b', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#52525b', gap:14 }}>
