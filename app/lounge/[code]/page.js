@@ -64,8 +64,8 @@ const ANIM_CSS = `
 
 /* Glowing Header Start Audio Button */
 .header-start-audio {
-  background: #ef4444 !important; color: #fff !important;
-  border: 1px solid #f87171 !important; border-radius: 8px !important;
+  background: #44bfef !important; color: #fff !important;
+  border: 1px solid #0c59bd !important; border-radius: 8px !important;
   padding: 4px 10px !important; font-size: 11px !important; font-weight: 700 !important;
   cursor: pointer !important; animation: pulse-audio 1.5s infinite;
   white-space: nowrap; height: 26px; display: flex; align-items: center;
@@ -573,7 +573,7 @@ export default function LoungePage() {
 
         {/* Right side buttons - hide-scroll for horizontal scrolling on small screens */}
         <div className="hide-scroll" style={{ display:'flex', alignItems:'center', gap:7, overflowX:'auto' }}>
-          {token && roomOptions && <StartAudio label="🔇 Enable Audio" className="header-start-audio" />}
+          {token && roomOptions && <StartAudio label=" Enable Audio" className="header-start-audio" />}
 
           <button onClick={() => setShowPresent(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:showPresent ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border:`1px solid ${showPresent ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius:8, padding:'4px 10px', cursor:'pointer', color:showPresent ? '#818cf8' : '#71717a', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
             {Ic.screen('w-3.5 h-3.5')} <span className="hidden sm:inline">Present</span>
