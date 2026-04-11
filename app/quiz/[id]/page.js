@@ -1,806 +1,384 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { useLounge } from '@/hooks/useLounge'
-import { getLounge } from '@/app/actions/lounge'
-import { processPDF } from '@/app/actions/pdf'
-
-import YouTube from 'react-youtube'
-
-import {
-  LiveKitRoom, RoomAudioRenderer, useParticipants,
-  useLocalParticipant, useIsSpeaking, TrackToggle,
-  useTracks, StartAudio,
-} from '@livekit/components-react'
-import { Track } from 'livekit-client'
-import '@livekit/components-styles'
 
 // ── SVG Icons ─────────────────────────────────────────────────────────────
-const Ic = {
-  mic: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>,
-  micOff: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="22"/></svg>,
-  volume: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>,
-  volumeOff: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>,
-  music: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>,
-  chat: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-  copy: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
-  exit: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  send: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
-  edit: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-  keyboard: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="6" y1="14" x2="18" y2="14"/></svg>,
-  users: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-  check: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
-  x: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  alert: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-  minimize: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>,
-  maximize: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>,
-  screen: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
-  screenStop: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
-  arrowUp: (cls='w-5 h-5') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>,
-  arrowDown: (cls='w-5 h-5') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>,
-  arrowLeft: (cls='w-5 h-5') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>,
-  arrowRight: (cls='w-5 h-5') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>,
-  paperclip: (cls='w-4 h-4') => <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
+const Icons = {
+  Check: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
+  X: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+  Dash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+  Trophy: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>,
+  ArrowRight: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
 }
 
-// ── CSS animations ─────────────────────────────────────────────────────────
-const ANIM_CSS = `
-@keyframes avatarWalk {
-  0%,100% { transform: translateY(0px) rotate(0deg); }
-  25%      { transform: translateY(-4px) rotate(-1.5deg); }
-  75%      { transform: translateY(-4px) rotate(1.5deg); }
-}
-@keyframes avatarIdle {
-  0%,100% { transform: translateY(0px); }
-  50%      { transform: translateY(-2px); }
-}
-@keyframes shadowWalk {
-  0%,100% { transform: scaleX(1) translateX(-62%); opacity: 0.35; }
-  25%,75%  { transform: scaleX(0.75) translateX(-62%); opacity: 0.18; }
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fadeIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
-.header-start-audio {
-  background: #4f46e5 !important; color: #fff !important;
-  border: 1px solid rgba(99,102,241,0.5) !important; border-radius: 8px !important;
-  padding: 4px 10px !important; font-size: 11px !important; font-weight: 700 !important;
-  cursor: pointer !important; white-space: nowrap; height: 30px;
-  display: flex; align-items: center;
-}
-`
-
-// ── Speaking bars ──────────────────────────────────────────────────────────
-function SpeakingBars({ active }) {
-  const heights = [0.45, 0.85, 0.6, 1, 0.7, 0.9, 0.5]
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:2, height:16 }}>
-      {heights.map((h, i) => (
-        <div key={i} style={{ width:2.5, borderRadius:2, height:active ? `${h*100}%` : '15%', background:active ? '#4ade80' : '#3f3f46', transition:`height ${0.08+i*0.03}s ease` }} />
-      ))}
-    </div>
-  )
-}
-
-// ── Animated Avatar — walking keyframe applied when isMoving=true ──────────
-function Avatar({ x, y, displayName, avatarColor, sprite, isMe=false, size=48, userId, hasVoice, isIdle, isMoving=false }) {
-  if (hasVoice) return <VoiceAvatar x={x} y={y} displayName={displayName} avatarColor={avatarColor} sprite={sprite} isMe={isMe} size={size} userId={userId} isIdle={isIdle} isMoving={isMoving} />
-  return <BaseAvatar x={x} y={y} displayName={displayName} avatarColor={avatarColor} sprite={sprite} isMe={isMe} size={size} isSpeaking={false} isIdle={isIdle} isMoving={isMoving} />
-}
-
-function VoiceAvatar(props) {
-  const participants = useParticipants()
-  const { localParticipant } = useLocalParticipant()
-  const participant = props.isMe ? localParticipant : participants.find(p => p.identity === props.userId)
-  if (!participant) return <BaseAvatar {...props} isSpeaking={false} />
-  return <SpeakingAvatarInner {...props} participant={participant} />
-}
-
-function SpeakingAvatarInner({ participant, ...props }) {
-  const isSpeaking = useIsSpeaking(participant)
-  return <BaseAvatar {...props} isSpeaking={isSpeaking} />
-}
-
-function BaseAvatar({ x, y, displayName, avatarColor, sprite, isMe, size, isSpeaking, isIdle, isMoving }) {
-  // ── Walking animation: bob + rotate when moving, gentle float when idle ──
-  const walkAnim = isMoving
-    ? 'avatarWalk 0.3s ease-in-out infinite'
-    : isIdle ? 'none' : 'avatarIdle 2.6s ease-in-out infinite'
-
-  return (
-    <div style={{
-      position:'absolute', left:x, top:y, width:size,
-      transition: isMe ? 'none' : 'left 0.06s linear, top 0.06s linear',
-      zIndex: isMe ? 10 : 5,
-    }}>
-      {isIdle && (
-        <div style={{ position:'absolute', top:-20, left:'50%', transform:'translateX(-50%)', fontSize:9, fontWeight:700, color:'#a78bfa', background:'rgba(0,0,0,0.75)', borderRadius:4, padding:'2px 6px', whiteSpace:'nowrap', border:'1px solid rgba(167,139,250,0.2)' }}>
-          Idle
-        </div>
-      )}
-
-      {/* Body — the animation wraps both sprite and shadow so they move together */}
-      <div style={{ animation: walkAnim, display:'flex', flexDirection:'column', alignItems:'center' }}>
-        <div style={{
-          width:size, height:size,
-          background: sprite ? 'transparent' : avatarColor,
-          borderRadius:8,
-          boxShadow: isSpeaking ? '0 0 0 3px #4ade80, 0 0 14px rgba(74,222,128,0.35)' : isMe ? '0 0 0 2px rgba(99,102,241,0.5)' : 'none',
-          transform: isSpeaking ? 'scale(1.07)' : 'scale(1)',
-          transition:'box-shadow 0.12s ease, transform 0.12s ease',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          opacity: isIdle ? 0.45 : 1, overflow:'hidden', imageRendering:'pixelated',
-        }}>
-          {sprite
-            ? <img src={sprite} alt="avatar" style={{ width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated' }} />
-            : <span style={{ fontSize:size*0.35, fontWeight:700, color:'#fff' }}>{(displayName||'?').slice(0,2).toUpperCase()}</span>}
-        </div>
-
-        {/* Ground shadow — shrinks when airborne */}
-        <div style={{
-          width:size*0.6, height:5, borderRadius:'50%',
-          background:'rgba(0,0,0,0.35)',
-          marginTop:-2,
-          animation: isMoving ? 'shadowWalk 0.3s ease-in-out infinite' : 'none',
-          transformOrigin:'62% center',
-        }} />
-      </div>
-
-      {/* Name tag */}
-      <div style={{
-        position:'absolute', top:size+10, left:'50%', transform:'translateX(-50%)',
-        fontSize:9, fontWeight:700, whiteSpace:'nowrap',
-        color: isSpeaking ? '#4ade80' : '#d4d4d8',
-        background:'rgba(0,0,0,0.82)', borderRadius:4, padding:'2px 7px',
-        border:`1px solid ${isSpeaking ? 'rgba(74,222,128,0.28)' : 'rgba(255,255,255,0.07)'}`,
-      }}>
-        {isMe ? `${displayName} (you)` : displayName}
-      </div>
-    </div>
-  )
-}
-
-// ── Typewriter ─────────────────────────────────────────────────────────────
-function TypewriterText({ content }) {
-  const [shown, setShown] = useState('')
-  useEffect(() => {
-    let i = 0
-    const t = setInterval(() => { i += 3; setShown(content.slice(0, i)); if (i >= content.length) clearInterval(t) }, 15)
-    return () => clearInterval(t)
-  }, [content])
-  return <span>{shown}</span>
-}
-
-// ── Screen share viewer ────────────────────────────────────────────────────
-function ScreenShareViewer() {
-  const tracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true })
-  const screenTrack = tracks[0]
-
-  if (!screenTrack) return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'#52525b' }}>
-      {Ic.screen('w-10 h-10')}
-      <span style={{ fontSize:13 }}>No one is sharing their screen</span>
-      <span style={{ fontSize:11, color:'#3f3f46' }}>Click Present in the voice bar to share</span>
-    </div>
-  )
-
-  return (
-    <div style={{ flex:1, background:'#000', display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
-      <video ref={el => { if (el && screenTrack.publication?.track) screenTrack.publication.track.attach(el) }} autoPlay playsInline muted style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain' }} />
-      <div style={{ position:'absolute', top:10, left:10, background:'rgba(0,0,0,0.7)', borderRadius:8, padding:'4px 10px', fontSize:11, color:'#a1a1aa', border:'1px solid rgba(255,255,255,0.1)' }}>
-        {screenTrack.participant?.identity?.slice(0, 16) || 'Unknown'} is sharing
-      </div>
-    </div>
-  )
-}
-
-// ── Formatted message with quiz button ────────────────────────────────────
-function FormattedMessage({ text, roomCode }) {
-  const quizMatch = text.match(/\[TAKE_QUIZ:([^\]]+)\]/)
-  let content = text
-  let quizId = null
-  if (quizMatch) { quizId = quizMatch[1]; content = text.replace(quizMatch[0], '').trim() }
-
-  const renderText = () => content.split('\n').map((line, i) => {
-    const parts = line.split(/(\*\*.*?\*\*)/g).map((part, j) => {
-      if (part.startsWith('**') && part.endsWith('**')) return <strong key={j} style={{ color:'#fff' }}>{part.slice(2,-2)}</strong>
-      return part
-    })
-    return <div key={i} style={{ marginBottom:4 }}>{parts}</div>
-  })
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-      <div>{renderText()}</div>
-      {quizId && (
-        <Link href={`/quiz/${quizId}?from=${roomCode}`} target="_blank" style={{
-          background:'linear-gradient(135deg,#4f46e5 0%,#a855f7 100%)',
-          color:'#fff', textDecoration:'none', padding:'10px 14px', borderRadius:8,
-          fontWeight:800, fontSize:12, textAlign:'center', display:'block',
-          boxShadow:'0 4px 15px rgba(168,85,247,0.3)', border:'1px solid rgba(255,255,255,0.2)',
-        }}>
-          TAKE SHARED QUIZ
-        </Link>
-      )}
-    </div>
-  )
-}
-
-// ── Chat panel ─────────────────────────────────────────────────────────────
-// KEY FIX: receives onBroadcastPDF to sync uploaded document to all users
-function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, mySprite, onUpdateIdentity, roomCode, onBroadcastPDF }) {
-  const [draft, setDraft] = useState('')
-  const [editing, setEditing] = useState(false)
-  const [editName, setEditName] = useState(myName)
-  const [editSprite, setEditSprite] = useState(mySprite || '/sprites/char1.png')
-  const messagesRef = useRef(null)
-
-  useEffect(() => {
-    if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight
-  }, [chatMessages])
-
-  const uniqueUsers = Array.from(new Map(presenceList.map(u => [u.userId, u])).values())
-  const sprites = ['/sprites/char1.png','/sprites/char2.png','/sprites/char3.png','/sprites/char4.png','/sprites/char5.png']
-
-  const panelStyle = { display:'flex', flexDirection:'column', height:'100%', background:'rgba(9,9,11,0.98)', borderLeft:'1px solid rgba(255,255,255,0.06)' }
-  const sectionStyle = { padding:'13px 15px', borderBottom:'1px solid rgba(255,255,255,0.06)' }
-  const labelStyle = { fontSize:9, color:'#52525b', textTransform:'uppercase', letterSpacing:'0.08em', fontWeight:600, marginBottom:10, display:'flex', alignItems:'center', gap:5 }
-
-  return (
-    <div style={panelStyle}>
-      {/* Identity */}
-      <div style={sectionStyle}>
-        <div style={labelStyle}>{Ic.edit('w-3 h-3')} Your identity</div>
-        {editing ? (
-          <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
-            <div style={{ display:'flex', gap:6 }}>
-              <input value={editName} onChange={e => setEditName(e.target.value)} maxLength={12} autoFocus style={{ flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'#fff', fontSize:12, padding:'6px 10px', borderRadius:8, outline:'none' }} />
-              <button onClick={() => { onUpdateIdentity(editName, editSprite); setEditing(false) }} style={{ background:'#4f46e5', border:'none', borderRadius:8, padding:'0 11px', cursor:'pointer', color:'#fff', display:'flex', alignItems:'center' }}>{Ic.check('w-3.5 h-3.5')}</button>
-              <button onClick={() => setEditing(false)} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'0 9px', cursor:'pointer', color:'#71717a', display:'flex', alignItems:'center' }}>{Ic.x('w-3.5 h-3.5')}</button>
-            </div>
-            <div style={{ display:'flex', gap:5 }}>
-              {sprites.map(s => (
-                <button key={s} onClick={() => setEditSprite(s)} style={{ flex:1, aspectRatio:'1', background:'rgba(255,255,255,0.05)', border:editSprite===s ? '2px solid #4f46e5' : '2px solid transparent', borderRadius:6, overflow:'hidden', cursor:'pointer', padding:2 }}>
-                  <img src={s} alt="" style={{ width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated' }} />
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-              <div style={{ width:30, height:30, background:'rgba(255,255,255,0.06)', borderRadius:7, overflow:'hidden', flexShrink:0 }}>
-                <img src={mySprite||'/sprites/char1.png'} alt="me" style={{ width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated' }} />
-              </div>
-              <span style={{ fontSize:13, fontWeight:700, color:'#e4e4e7', fontFamily:'monospace' }}>{myName}</span>
-            </div>
-            <button onClick={() => setEditing(true)} style={{ background:'transparent', border:'none', borderRadius:6, padding:'5px 8px', cursor:'pointer', color:'#52525b', display:'flex', alignItems:'center', gap:4, fontSize:10, fontWeight:600 }}>
-              {Ic.edit('w-3 h-3')} Edit
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Online */}
-      <div style={sectionStyle}>
-        <div style={labelStyle}>{Ic.users('w-3 h-3')} Online — {uniqueUsers.length} / 20</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {uniqueUsers.map((u, i) => (
-            <div key={`${u.userId}-${i}`} style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', flexShrink:0 }} />
-              <img src={u.sprite||'/sprites/char1.png'} alt="" style={{ width:16, height:16, imageRendering:'pixelated' }} />
-              <span style={{ fontSize:11, color:u.userId===myUserId ? '#e4e4e7' : '#71717a', fontFamily:'monospace', fontWeight:u.userId===myUserId ? 700 : 400 }}>
-                {u.displayName}{u.userId===myUserId ? ' (you)' : ''}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div ref={messagesRef} style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10, scrollbarWidth:'none', paddingBottom:20 }}>
-        {chatMessages.length === 0 && (
-          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, opacity:0.25, paddingTop:40 }}>
-            {Ic.chat('w-7 h-7')}
-            <span style={{ fontSize:11, color:'#71717a', textAlign:'center' }}>
-              No messages yet.<br/>
-              Say something or @aguila to ask questions.<br/>
-              <span style={{ fontSize:10, opacity:0.7 }}>Ask for a quiz: "@aguila generate 20 questions"</span>
-            </span>
-          </div>
-        )}
-        {chatMessages.map((msg, i) => (
-          <div key={i} style={{ display:'flex', flexDirection:'column', gap:3 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              {msg.userId==='aguila-bot' && msg.sprite && <img src={msg.sprite} style={{ width:14, height:14, imageRendering:'pixelated' }} alt="Aguila" />}
-              <span style={{ fontSize:10, fontWeight:700, color:msg.userId==='aguila-bot' ? '#a78bfa' : (msg.avatarColor||'#a1a1aa') }}>{msg.displayName}</span>
-            </div>
-            <div style={{
-              fontSize:12, color:'#d4d4d8', lineHeight:1.55, wordBreak:'break-word',
-              whiteSpace:'pre-wrap', padding:'8px 12px', borderRadius:10,
-              background: msg.userId==='aguila-bot' ? 'linear-gradient(135deg,rgba(99,102,241,0.15) 0%,rgba(168,85,247,0.15) 100%)' : 'rgba(255,255,255,0.04)',
-              border: msg.userId==='aguila-bot' ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(255,255,255,0.06)',
-              boxShadow: msg.userId==='aguila-bot' ? '0 4px 15px rgba(168,85,247,0.1)' : 'none',
-              borderTopLeftRadius: msg.userId==='aguila-bot' ? 2 : 10,
-            }}>
-              {msg.userId==='aguila-bot' ? <FormattedMessage text={msg.text} roomCode={roomCode} /> : msg.text}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Input bar */}
-      <div style={{ padding:'10px 14px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column', gap:8 }}>
-        <form
-          onSubmit={e => {
-            e.preventDefault()
-            if (draft.trim()) {
-              // Pass current chatMessages snapshot for Aguila context
-              onSendChat(draft, chatMessages)
-              setDraft('')
-            }
-          }}
-          style={{ display:'flex', gap:7 }}
-        >
-          {/* PDF upload — KEY FIX: calls onBroadcastPDF after success */}
-          <input
-            type="file" id="pdf-upload" accept="application/pdf" style={{ display:'none' }}
-            onChange={async (e) => {
-              const file = e.target.files[0]
-              if (!file) return
-              onSendChat(`Uploading ${file.name} for everyone in the room...`, chatMessages)
-              try {
-                const formData = new FormData()
-                formData.append('file', file)
-                const res = await processPDF(formData, myUserId, null)
-                if (res.success) {
-                  // ── CRITICAL: sync the document ID to all users via Supabase broadcast
-                  if (onBroadcastPDF) onBroadcastPDF(res.documentId)
-                  onSendChat(
-                    `@aguila I just uploaded ${file.name}. Give everyone a 2-sentence summary of what it covers.`,
-                    chatMessages
-                  )
-                } else {
-                  throw new Error(res.error || 'Upload failed')
-                }
-              } catch (err) {
-                console.error('PDF upload error:', err)
-                onSendChat(`Failed to upload ${file.name}: ${err.message}`, chatMessages)
-              }
-              e.target.value = null
-            }}
-          />
-
-          <button
-            type="button"
-            onClick={() => document.getElementById('pdf-upload').click()}
-            title="Upload PDF to share with the room"
-            style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, width:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#a1a1aa', flexShrink:0 }}
-          >
-            {Ic.paperclip('w-4 h-4')}
-          </button>
-
-          <input
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            placeholder="Message or @aguila..."
-            style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'8px 11px', fontSize:12, color:'#fff', outline:'none' }}
-            onFocus={e => e.target.style.border='1px solid rgba(99,102,241,0.4)'}
-            onBlur={e => e.target.style.border='1px solid rgba(255,255,255,0.08)'}
-          />
-
-          <button
-            type="submit" disabled={!draft.trim()}
-            style={{ background:draft.trim() ? '#4f46e5' : 'rgba(255,255,255,0.05)', border:'none', borderRadius:10, padding:'8px 11px', cursor:draft.trim() ? 'pointer' : 'default', color:draft.trim() ? '#fff' : '#3f3f46', display:'flex', alignItems:'center' }}
-          >
-            {Ic.send('w-3.5 h-3.5')}
-          </button>
-        </form>
-
-        <p style={{ fontSize:9, color:'#3f3f46', textAlign:'center', margin:0 }}>
-          @aguila [topic] — ask anything &nbsp;|&nbsp; @aguila generate [N] questions — unlimited quiz
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// ── Voice bar ──────────────────────────────────────────────────────────────
-function VoiceBar({ onScreenShare, isSharing }) {
-  const { localParticipant, isMicrophoneEnabled, isScreenShareEnabled } = useLocalParticipant()
-  const participants = useParticipants()
-  const isSpeaking = useIsSpeaking(localParticipant)
-  const [isDeafened, setIsDeafened] = useState(false)
-  const [isPTT, setIsPTT] = useState(false)
-
-  useEffect(() => {
-    if (!isPTT || !localParticipant) return
-    const onDown = async (e) => {
-      if (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA' || e.repeat) return
-      if (e.key.toLowerCase()==='v') await localParticipant.setMicrophoneEnabled(true).catch(()=>{})
-    }
-    const onUp = async (e) => {
-      if (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA') return
-      if (e.key.toLowerCase()==='v') await localParticipant.setMicrophoneEnabled(false).catch(()=>{})
-    }
-    window.addEventListener('keydown', onDown)
-    window.addEventListener('keyup', onUp)
-    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp) }
-  }, [isPTT, localParticipant])
-
-  const handleScreenShare = async () => {
-    try {
-      await localParticipant.setScreenShareEnabled(!isScreenShareEnabled)
-      onScreenShare(!isScreenShareEnabled)
-    } catch (e) { console.warn('Screen share failed:', e) }
-  }
-
-  const micActive = isMicrophoneEnabled && !isPTT
-  const speakingNow = micActive && isSpeaking
-  const btnBase = { display:'flex', alignItems:'center', gap:6, borderRadius:9, padding:'4px 10px', fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.15s', flexShrink:0, border:'none' }
-
-  return (
-    <div className="hide-scroll" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', height:'100%', gap:6, overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-        <TrackToggle source={Track.Source.Microphone} disabled={isPTT} style={{ ...btnBase, background:micActive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', border:`1px solid ${micActive ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}`, color:micActive ? '#4ade80' : '#f87171', opacity:isPTT?0.45:1, cursor:isPTT?'not-allowed':'pointer' }}>
-          {micActive ? Ic.mic('w-3.5 h-3.5') : Ic.micOff('w-3.5 h-3.5')}
-          <span className="hidden sm:inline">{micActive ? 'Mic on' : 'Muted'}</span>
-        </TrackToggle>
-
-        <div style={{ ...btnBase, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', cursor:'default', padding:'4px 8px' }}>
-          <SpeakingBars active={speakingNow} />
-          <span className="hidden sm:inline" style={{ color:speakingNow ? '#4ade80' : '#3f3f46' }}>{micActive ? (isSpeaking ? 'Speaking' : 'Listening') : 'Mic off'}</span>
-        </div>
-
-        <button onClick={() => setIsDeafened(d => !d)} style={{ ...btnBase, background:isDeafened ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.05)', border:`1px solid ${isDeafened ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.08)'}`, color:isDeafened ? '#f87171' : '#a1a1aa' }}>
-          {isDeafened ? Ic.volumeOff('w-3.5 h-3.5') : Ic.volume('w-3.5 h-3.5')}
-          <span className="hidden sm:inline">{isDeafened ? 'Deafened' : 'Sound on'}</span>
-        </button>
-
-        <button onClick={() => setIsPTT(p => !p)} className="hidden sm:flex" style={{ ...btnBase, background:isPTT ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border:`1px solid ${isPTT ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, color:isPTT ? '#818cf8' : '#71717a' }}>
-          {Ic.keyboard('w-3.5 h-3.5')} <span>{isPTT ? 'PTT — hold V' : 'Voice act.'}</span>
-        </button>
-
-        <button onClick={handleScreenShare} style={{ ...btnBase, background:isScreenShareEnabled ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${isScreenShareEnabled ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`, color:isScreenShareEnabled ? '#818cf8' : '#71717a' }}>
-          {isScreenShareEnabled ? Ic.screenStop('w-3.5 h-3.5') : Ic.screen('w-3.5 h-3.5')}
-          <span className="hidden sm:inline">{isScreenShareEnabled ? 'Stop share' : 'Present'}</span>
-        </button>
-      </div>
-
-      <div style={{ display:'flex', alignItems:'center', gap:12, flexShrink:0, paddingLeft:16 }}>
-        {participants.map(p => (
-          <div key={p.identity} style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.04)', padding:'4px 8px', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', flexShrink:0 }}>
-            <div style={{ width:6, height:6, borderRadius:'50%', background:p.isMicrophoneEnabled ? '#22c55e' : '#3f3f46' }} />
-            <span style={{ fontSize:10, color:'#a1a1aa', fontWeight:600, maxWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.identity}</span>
-            <input type="range" min="0" max="1" step="0.05" defaultValue="1" onChange={(e) => { const pub = p.getTrackPublication(Track.Source.Microphone); if (pub?.track) pub.track.setVolume(parseFloat(e.target.value)) }} style={{ width:40, height:4, accentColor:'#4f46e5', cursor:'pointer' }} />
-          </div>
-        ))}
-      </div>
-
-      {!isDeafened && <RoomAudioRenderer />}
-    </div>
-  )
-}
-
-// ── D-Pad ──────────────────────────────────────────────────────────────────
-function DPadBtn({ icon, dir, setMovement }) {
-  return (
-    <button
-      onPointerDown={() => setMovement(dir, true)} onPointerUp={() => setMovement(dir, false)}
-      onPointerLeave={() => setMovement(dir, false)} onPointerCancel={() => setMovement(dir, false)}
-      style={{ background:'rgba(9,9,11,0.88)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:12, height:48, width:48, color:'#e4e4e7', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', touchAction:'none', userSelect:'none', outline:'none', WebkitTapHighlightColor:'transparent' }}
-    >
-      {icon}
-    </button>
-  )
-}
-
-// ── Music widget ───────────────────────────────────────────────────────────
-function MusicWidget({ globalMusic, setGlobalMusic }) {
-  const [minimized, setMinimized] = useState(false)
-  if (!globalMusic?.url) return null
-
-  const isYT = globalMusic.url.includes('youtube.com') || globalMusic.url.includes('youtu.be')
-  const isSpotify = globalMusic.url.includes('spotify.com')
-  let embedUrl = globalMusic.url
-  if (isYT && !embedUrl.includes('mute=1')) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'mute=1&playsinline=1&rel=0'
-
-  return (
-    <div className="music-widget" style={{ animation:'fadeIn 0.2s ease' }}>
-      <div style={{ background:'rgba(255,255,255,0.04)', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:minimized ? 'none' : '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          {Ic.music('w-3 h-3')}
-          <span style={{ fontSize:10, color:'#71717a', fontWeight:600 }}>Room DJ</span>
-          {minimized && <span style={{ fontSize:10, color:'#4ade80' }}>— playing</span>}
-        </div>
-        <div style={{ display:'flex', gap:4 }}>
-          <button onClick={() => setMinimized(m => !m)} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex', borderRadius:4 }}>
-            {minimized ? Ic.maximize('w-3.5 h-3.5') : Ic.minimize('w-3.5 h-3.5')}
-          </button>
-          <button onClick={() => setGlobalMusic({ url:'' })} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex', borderRadius:4 }}>
-            {Ic.x('w-3.5 h-3.5')}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ height:minimized ? 0 : (isSpotify ? 152 : 160), overflow:'hidden', transition:'height 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
-        {isYT ? (
-          <YouTube
-            videoId={globalMusic.url.includes('videoseries') ? null : globalMusic.url.split('embed/')[1].split('?')[0]}
-            opts={{ height:'152', width:'100%', playerVars: { autoplay:1, controls:1, listType:globalMusic.url.includes('videoseries') ? 'playlist' : undefined, list:globalMusic.url.includes('videoseries') ? new URLSearchParams(globalMusic.url.split('?')[1]).get('list') : undefined } }}
-            onPlay={(e) => setGlobalMusic({ isPlaying:true, time:e.target.getCurrentTime() })}
-            onPause={(e) => setGlobalMusic({ isPlaying:false, time:e.target.getCurrentTime() })}
-            onReady={(e) => { if (!globalMusic.isPlaying) e.target.pauseVideo(); e.target.seekTo(globalMusic.time) }}
-          />
-        ) : (
-          <iframe src={embedUrl} width="100%" height={isSpotify ? 152 : 160} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowFullScreen style={{ display:'block' }} />
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Main page ──────────────────────────────────────────────────────────────
-export default function LoungePage() {
-  const { code } = useParams()
+export default function TakeQuizPage() {
+  const { id } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromCode = searchParams.get('from')
 
-  const [user, setUser] = useState(null)
-  const [lounge, setLounge] = useState(null)
-  const [token, setToken] = useState(null)
+  const [quiz, setQuiz] = useState(null)
+  const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [chatOpen, setChatOpen] = useState(false)
-  const [showMusicInput, setShowMusicInput] = useState(false)
-  const [musicLink, setMusicLink] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [micPermission, setMicPermission] = useState('unknown')
-  const [isSharing, setIsSharing] = useState(false)
-  const [showPresent, setShowPresent] = useState(false)
+  const [error, setError] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
 
-  const scrollViewRef = useRef(null)
-
-  // Mic permission — inside component (was the original crash bug)
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices) return
-    navigator.mediaDevices.getUserMedia({ audio:true, video:false })
-      .then(stream => { stream.getTracks().forEach(t => t.stop()); setMicPermission('granted') })
-      .catch(err => { console.warn('Mic permission:', err.name); setMicPermission('denied') })
-  }, [])
+  // Quiz State
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [answers, setAnswers] = useState({})
+  const [isFinished, setIsFinished] = useState(false)
+  const [score, setScore] = useState(0)
+  const [leaderboard, setLeaderboard] = useState([])
 
   useEffect(() => {
-    const init = async () => {
-      if (!code) return
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/login'); return }
-      setUser(session.user)
-      const loungeResult = await getLounge(code)
-      if (!loungeResult.success) { setError(loungeResult.error); setLoading(false); return }
-      setLounge(loungeResult.lounge)
-      const tokenRes = await fetch(`/api/livekit-token?room=${code}&identity=${session.user.id}`, { headers: { Authorization:`Bearer ${session.access_token}` } })
-      if (tokenRes.ok) { const { token: lkToken } = await tokenRes.json(); setToken(lkToken) }
-      else {
-        const body = await tokenRes.json().catch(() => ({}))
-        if (body.error?.includes('full')) { setError('This lounge is full (20/20). Try again later.'); setLoading(false); return }
+    const fetchQuizData = async () => {
+      try {
+        setLoading(true)
+        const { data: { session } } = await supabase.auth.getSession()
+        setCurrentUser(session?.user || null)
+
+        const { data: quizData, error: quizErr } = await supabase.from('quizzes').select('*').eq('id', id).single()
+        if (quizErr) throw new Error("Quiz not found or deleted.")
+
+        const { data: questionData, error: questErr } = await supabase.from('questions').select('*').eq('quiz_id', id)
+        if (questErr) throw new Error("Failed to load questions.")
+
+        const sortedQs = (questionData || []).sort((a,b) => a.id.localeCompare(b.id))
+        setQuiz(quizData)
+        setQuestions(sortedQs)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
-    init()
-  }, [code, router])
+    if (id) fetchQuizData()
+  }, [id])
 
-  // ── KEY FIX: destructure broadcastLoungePDF from useLounge ────────
-  const {
-    myPosition, otherUsers, presenceList, chatMessages, sendChat,
-    ROOM_WIDTH, ROOM_HEIGHT, AVATAR_SIZE, myMeta, updateIdentity, setMovement,
-    globalMusic, setGlobalMusic, isMoving,
-    broadcastLoungePDF,
-  } = useLounge({ loungeCode: lounge?.invite_code, user })
-
-  // Camera follow — scroll view tracks player position
-  useEffect(() => {
-    const el = scrollViewRef.current
-    if (!el) return
-    const targetX = myPosition.x + AVATAR_SIZE / 2 - el.clientWidth / 2
-    const targetY = myPosition.y + AVATAR_SIZE / 2 - el.clientHeight / 2
-    el.scrollLeft = Math.max(0, targetX)
-    el.scrollTop  = Math.max(0, targetY)
-  }, [myPosition, AVATAR_SIZE])
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768) setChatOpen(true)
-  }, [])
-
-  const handleCopyCode = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2200) }
-
-  const handleSetMusic = (e) => {
-    e.preventDefault()
-    let link = musicLink.trim()
-    if (!link) return
-    if (!link.startsWith('http')) link = 'https://' + link
-    try {
-      const urlObj = new URL(link)
-      let finalUrl = ''
-      if (link.includes('youtube.com') || link.includes('youtu.be')) {
-        if (link.includes('list=')) {
-          finalUrl = `https://www.youtube.com/embed/videoseries?list=${new URLSearchParams(urlObj.search).get('list')}&autoplay=1&mute=1&playsinline=1`
-        } else {
-          const vid = link.includes('youtu.be') ? urlObj.pathname.slice(1) : new URLSearchParams(urlObj.search).get('v')
-          if (vid) finalUrl = `https://www.youtube.com/embed/${vid}?autoplay=1&mute=1&playsinline=1&rel=0`
-        }
-      } else if (link.includes('spotify.com')) {
-        const path = urlObj.pathname
-        finalUrl = path.startsWith('/embed/') ? link : `https://open.spotify.com/embed${path}?utm_source=generator&theme=0`
-      }
-      if (finalUrl) setGlobalMusic({ url:finalUrl, isPlaying:true, time:0 })
-    } catch {}
-    setShowMusicInput(false)
-    setMusicLink('')
+  const handleSelect = (questionId, choice) => {
+    if (answers[questionId]) return 
+    setAnswers(prev => ({ ...prev, [questionId]: choice }))
   }
 
-  const [roomOptions] = useState({
-    audioCaptureDefaults: { autoGainControl:true, echoCancellation:true, noiseSuppression:true },
-    publishDefaults: { red:true, audioBitrate:32000 },
-  })
+  const handleNext = () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(i => i + 1)
+    } else {
+      finishQuiz()
+    }
+  }
 
-  // ── Loading / error ───────────────────────────────────────────────
-  if (loading) return (
-    <div style={{ height:'100dvh', background:'#09090b', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#52525b', gap:14 }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      <div style={{ width:22, height:22, border:'2px solid #3f3f46', borderTopColor:'#4f46e5', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
-      <span style={{ fontSize:12, fontWeight:600 }}>Connecting...</span>
-    </div>
-  )
+  const finishQuiz = async () => {
+    setLoading(true)
+    let finalScore = 0
+    questions.forEach(q => {
+      if (answers[q.id] === q.answer) finalScore += 1
+    })
+    
+    setScore(finalScore)
+    setIsFinished(true)
+    
+    if (currentUser) {
+      await supabase.from('quiz_results').insert([{
+        quiz_id: id, user_id: currentUser.id, score: finalScore, total: questions.length, quiz_title: quiz?.title || 'Shared Quiz'
+      }])
+    }
 
-  if (error) return (
-    <div style={{ height:'100dvh', background:'#09090b', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:8, color:'#f87171', fontSize:13, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:12, padding:'12px 20px' }}>
-        {Ic.alert('w-4 h-4')} {error}
-      </div>
-      <Link href="/lounge" style={{ color:'#818cf8', fontSize:12, textDecoration:'none' }}>Back to lobby</Link>
-    </div>
-  )
-
-  // ── Room canvas ───────────────────────────────────────────────────
-  const RoomCanvas = (
-    <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative', WebkitTapHighlightColor:'transparent' }}>
-
-      {/* Screen share panel */}
-      {showPresent && (
-        <div style={{ width:'60%', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)', display:'flex', flexDirection:'column', background:'#09090b' }}>
-          <div style={{ padding:'8px 14px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:6 }}>{Ic.screen('w-4 h-4')}<span style={{ fontSize:11, color:'#a1a1aa', fontWeight:600 }}>Presentation</span></div>
-            <button onClick={() => setShowPresent(false)} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', display:'flex' }}>{Ic.x('w-4 h-4')}</button>
-          </div>
-          <ScreenShareViewer />
-        </div>
-      )}
-
-      {/* D-Pad */}
-      <div className="mobile-dpad">
-        <div /><DPadBtn icon={Ic.arrowUp('w-5 h-5')} dir="w" setMovement={setMovement} /><div />
-        <DPadBtn icon={Ic.arrowLeft('w-5 h-5')} dir="a" setMovement={setMovement} />
-        <DPadBtn icon={Ic.arrowDown('w-5 h-5')} dir="s" setMovement={setMovement} />
-        <DPadBtn icon={Ic.arrowRight('w-5 h-5')} dir="d" setMovement={setMovement} />
-      </div>
-
-      {/* Scrollable map — camera tracks player */}
-      <div ref={scrollViewRef} className="hide-scroll" style={{ flex:1, position:'relative', overflow:'auto', background:'#000', cursor:'grab', outline:'none' }}>
-        <div style={{ position:'relative', width:ROOM_WIDTH, height:ROOM_HEIGHT, minWidth:ROOM_WIDTH, minHeight:ROOM_HEIGHT, backgroundImage:`url('/pixel-room.png')`, backgroundSize:'100% 100%', imageRendering:'pixelated', overflow:'visible' }}>
-          {Object.entries(otherUsers).map(([uid, data]) => (
-            <Avatar key={uid} x={data.x} y={data.y} displayName={data.displayName} avatarColor={data.avatarColor} sprite={data.sprite} size={AVATAR_SIZE} userId={uid} hasVoice={!!token} isIdle={data.isIdle} isMoving={data.isMoving||false} />
-          ))}
-          <Avatar x={myPosition.x} y={myPosition.y} displayName={myMeta.displayName} avatarColor={myMeta.avatarColor} sprite={myMeta.sprite} isMe size={AVATAR_SIZE} userId={myMeta.userId} hasVoice={!!token} isIdle={myMeta.isIdle} isMoving={isMoving} />
-        </div>
-      </div>
-
-      {/* Chat panel — KEY FIX: passes broadcastLoungePDF as onBroadcastPDF */}
-      {chatOpen && (
-        <div className="chat-container">
-          <ChatPanel
-            presenceList={presenceList}
-            chatMessages={chatMessages}
-            onSendChat={sendChat}
-            myUserId={myMeta.userId}
-            myName={myMeta.displayName}
-            mySprite={myMeta.sprite}
-            onUpdateIdentity={updateIdentity}
-            roomCode={code}
-            onBroadcastPDF={broadcastLoungePDF}
-          />
-        </div>
-      )}
-
-      <MusicWidget globalMusic={globalMusic} setGlobalMusic={setGlobalMusic} />
-
-      {micPermission === 'denied' && (
-        <div style={{ position:'absolute', top:10, left:'50%', transform:'translateX(-50%)', zIndex:100, background:'rgba(239,68,68,0.14)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, padding:'7px 14px', display:'flex', alignItems:'center', gap:7, fontSize:11, color:'#f87171', backdropFilter:'blur(10px)', whiteSpace:'nowrap' }}>
-          {Ic.micOff('w-3.5 h-3.5')} Microphone access denied — enable in browser settings
-        </div>
-      )}
-    </div>
-  )
-
-  // ── Page layout ───────────────────────────────────────────────────
-  const pageContent = (
-    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:'#09090b', overflow:'hidden', color:'#fff', fontFamily:'system-ui,-apple-system,sans-serif' }}>
-      <style>{ANIM_CSS + `
-        .hide-scroll::-webkit-scrollbar { display:none; }
-        .hide-scroll { -ms-overflow-style:none; scrollbar-width:none; }
-        .chat-container { width:262px; height:100%; flex-shrink:0; background:#09090b; z-index:300; }
-        .music-widget { position:absolute; bottom:14px; left:14px; width:290px; background:#18181b; border:1px solid rgba(255,255,255,0.08); border-radius:14px; overflow:hidden; z-index:50; }
-        .mobile-dpad { display:none !important; }
-        @media (max-width:768px) {
-          .mobile-dpad { display:grid !important; position:absolute; bottom:20px; left:14px; z-index:50; grid-template-columns:repeat(3,48px); gap:7px; pointer-events:auto; }
-          .chat-container { position:absolute; top:0; right:0; width:88%; max-width:310px; height:100%; z-index:300; box-shadow:-10px 0 30px rgba(0,0,0,0.8); background:#09090b; }
-          .music-widget { left:auto; right:12px; bottom:16px; width:260px; }
+    const { data: lbData } = await supabase
+      .from('quiz_results')
+      .select('id, user_id, score, total')
+      .eq('quiz_id', id)
+      .order('score', { ascending: false })
+      
+    const uniqueLb = []
+    const seen = new Set()
+    if (lbData) {
+      lbData.forEach(entry => {
+        if (!seen.has(entry.user_id)) {
+          seen.add(entry.user_id)
+          uniqueLb.push(entry)
         }
-      `}</style>
+      })
+    }
+    setLeaderboard(uniqueLb)
+    setLoading(false)
+  }
 
-      {/* Header */}
-      <div style={{ height:46, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(9,9,11,0.98)', backdropFilter:'blur(12px)', flexShrink:0, zIndex:100, position:'relative' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <Link href="/lounge" style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#52525b', textDecoration:'none', fontWeight:600, padding:'5px 8px', borderRadius:8, border:'1px solid transparent' }}>
-            {Ic.exit('w-3.5 h-3.5')} <span className="hidden sm:inline">Exit</span>
-          </Link>
-          <div style={{ width:1, height:16, background:'rgba(255,255,255,0.08)' }} />
-          <span className="hidden sm:inline" style={{ fontSize:12, fontWeight:600, color:'#e4e4e7', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lounge?.name||'Study Lounge'}</span>
-          <button onClick={handleCopyCode} style={{ display:'flex', alignItems:'center', gap:5, background:copied ? 'rgba(74,222,128,0.1)' : 'rgba(79,70,229,0.1)', border:`1px solid ${copied ? 'rgba(74,222,128,0.3)' : 'rgba(99,102,241,0.25)'}`, borderRadius:8, padding:'4px 10px', cursor:'pointer', color:copied ? '#4ade80' : '#818cf8', fontSize:11, fontWeight:700, fontFamily:'monospace', transition:'all 0.2s' }}>
-            {copied ? Ic.check('w-3 h-3') : Ic.copy('w-3 h-3')}
-            <span style={{ letterSpacing:'0.08em' }}>{code}</span>
-            {copied && <span style={{ fontSize:10 }}>Copied</span>}
-          </button>
-        </div>
+  // ── CSS STYLES (Dotted Grid + Split Scroll) ─────────────────────────────
+  const baseStyles = `
+    .quiz-container { 
+      height: 100dvh; 
+      display: flex; 
+      flex-direction: column; 
+      background-color: #0A0A0A;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+      background-size: 24px 24px;
+      color: #E5E5E5; 
+      font-family: Inter, system-ui, sans-serif; 
+      overflow: hidden; 
+    }
 
-        <div className="hide-scroll" style={{ display:'flex', alignItems:'center', gap:7, overflowX:'auto' }}>
-          {token && roomOptions && <StartAudio label="Enable Audio" className="header-start-audio" />}
+    /* Custom Clean Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #262626; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #404040; }
 
-          <Link href={`/quiz?from=${code}`} style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:8, padding:'4px 10px', color:'#fbbf24', fontSize:11, fontWeight:600, whiteSpace:'nowrap', textDecoration:'none' }}>
-            {Ic.edit('w-3.5 h-3.5')} <span className="hidden sm:inline">Quiz</span>
-          </Link>
+    .card { background: #121212; border: 1px solid #262626; border-radius: 8px; padding: 1.5rem; }
+    .card-title { font-size: 1rem; font-weight: 600; color: #FAFAFA; margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem; }
+    
+    .btn { display: inline-flex; alignItems: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1.25rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s; border: 1px solid transparent; text-decoration: none; }
+    .btn-primary { background: #EDEDED; color: #0A0A0A; }
+    .btn-primary:hover { background: #D4D4D4; }
+    .btn-secondary { background: transparent; border-color: #262626; color: #A3A3A3; }
+    .btn-secondary:hover { background: #171717; color: #E5E5E5; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
+    .stat-box { display: flex; flex-direction: column; align-items: center; padding: 1rem; border-radius: 8px; border: 1px solid; }
 
-          <button onClick={() => setShowPresent(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:showPresent ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border:`1px solid ${showPresent ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius:8, padding:'4px 10px', cursor:'pointer', color:showPresent ? '#818cf8' : '#71717a', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
-            {Ic.screen('w-3.5 h-3.5')} <span className="hidden sm:inline">Present</span>
-          </button>
+    /* Dashboard Layout */
+    .dash-header { padding: 2rem 1rem 0 1rem; flex-shrink: 0; max-width: 900px; width: 100%; margin: 0 auto; }
+    .dash-content { flex: 1; min-height: 0; max-width: 900px; width: 100%; margin: 0 auto; padding: 0 1rem 2rem 1rem; }
+    
+    @media (max-width: 767px) {
+      .dash-content { overflow-y: auto; }
+      .scroll-col { margin-bottom: 2rem; }
+    }
+    @media (min-width: 768px) {
+      .dash-content { display: grid; grid-template-columns: 300px 1fr; gap: 2rem; overflow: hidden; }
+      .scroll-col { height: 100%; overflow-y: auto; padding-right: 0.5rem; }
+    }
+    
+    /* Quiz Active View */
+    .active-quiz-wrapper { height: 100%; overflow-y: auto; padding: 2rem 1rem; display: flex; flex-direction: column; }
+    .active-max-w { max-width: 600px; width: 100%; margin: 0 auto; }
+    
+    .choice-btn { width: 100%; display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #0A0A0A; border: 1px solid #262626; border-radius: 6px; color: #A3A3A3; cursor: pointer; text-align: left; font-size: 0.95rem; transition: border-color 0.1s, background 0.1s; margin-bottom: 0.75rem; }
+    .choice-btn:hover:not(:disabled) { border-color: #525252; background: #121212; }
+    .choice-key { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; background: #262626; color: #A3A3A3; font-size: 0.75rem; font-weight: 600; flex-shrink: 0; }
+    
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  `
 
-          <button onClick={() => setShowMusicInput(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:showMusicInput ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'4px 10px', cursor:'pointer', color:'#a1a1aa', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
-            {Ic.music('w-3.5 h-3.5')} <span className="hidden sm:inline">Music</span>
-          </button>
-
-          <button onClick={() => setChatOpen(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, background:chatOpen ? 'rgba(79,70,229,0.14)' : 'rgba(255,255,255,0.05)', border:`1px solid ${chatOpen ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius:8, padding:'4px 10px', cursor:'pointer', color:chatOpen ? '#818cf8' : '#71717a', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
-            {Ic.chat('w-3.5 h-3.5')} Chat
-          </button>
-        </div>
-
-        {showMusicInput && (
-          <form onSubmit={handleSetMusic} style={{ position:'absolute', top:48, right:12, background:'#18181b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:12, display:'flex', gap:7, zIndex:200, boxShadow:'0 8px 30px rgba(0,0,0,0.7)' }}>
-            <input value={musicLink} onChange={e=>setMusicLink(e.target.value)} placeholder="YouTube or Spotify..." autoFocus style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', borderRadius:8, padding:'7px 11px', fontSize:11, outline:'none', width:'200px', maxWidth:'50vw' }} />
-            <button type="submit" style={{ background:'#4f46e5', border:'none', borderRadius:8, padding:'7px 14px', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>Set</button>
-          </form>
-        )}
+  // ── UI RENDERING ────────────────────────────────────────────────────────
+  if (loading && !isFinished) {
+    return (
+      <div className="quiz-container" style={{ alignItems:'center', justifyContent:'center' }}>
+        <style>{baseStyles}</style>
+        <div style={{ color: '#A3A3A3', fontSize: '0.875rem' }}>Loading assessment...</div>
       </div>
+    )
+  }
 
-      {/* Body */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
-        {RoomCanvas}
-        <div style={{ height:48, borderTop:'1px solid rgba(255,255,255,0.06)', background:'rgba(9,9,11,0.98)', flexShrink:0 }}>
-          {token && roomOptions ? (
-            <VoiceBar onScreenShare={setIsSharing} isSharing={isSharing} />
-          ) : (
-            <div style={{ height:'100%', padding:'0 14px', display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:8, height:8, borderRadius:'50%', background:'#3f3f46' }} />
-              <span style={{ fontSize:11, color:'#3f3f46', fontWeight:600 }}>Voice offline</span>
+  if (error) {
+    return (
+      <div className="quiz-container" style={{ alignItems:'center', justifyContent:'center' }}>
+        <style>{baseStyles}</style>
+        <div className="card" style={{ textAlign: 'center', borderColor: '#450a0a', background: '#2a0a0a' }}>
+          <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', color: '#f87171' }}>Error Loading Quiz</h2>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: '#fca5a5' }}>{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 🏆 RESULTS DASHBOARD (Fixed Header, Scrollable Columns)
+  if (isFinished) {
+    const accuracy = Math.round((score / questions.length) * 100)
+    const correctCount = score
+    const unansweredCount = questions.length - Object.keys(answers).length
+    const incorrectCount = questions.length - correctCount - unansweredCount
+
+    return (
+      <div className="quiz-container">
+        <style>{baseStyles}</style>
+        
+        {/* Fixed Header Area */}
+        <div className="dash-header">
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: '#FAFAFA' }}>{accuracy}%</h1>
+            <p style={{ fontSize: '1rem', color: '#A3A3A3', margin: 0 }}>You scored {score} out of {questions.length}</p>
+          </div>
+
+          <div className="stats-grid">
+            <div className="stat-box" style={{ background: '#022c22', borderColor: '#065f46', color: '#10b981' }}>
+              <Icons.Check />
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem' }}>{correctCount}</div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.8, textTransform: 'uppercase' }}>Correct</div>
             </div>
-          )}
+            <div className="stat-box" style={{ background: '#450a0a', borderColor: '#7f1d1d', color: '#ef4444' }}>
+              <Icons.X />
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem' }}>{incorrectCount}</div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.8, textTransform: 'uppercase' }}>Incorrect</div>
+            </div>
+            <div className="stat-box" style={{ background: '#171717', borderColor: '#262626', color: '#A3A3A3' }}>
+              <Icons.Dash />
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem' }}>{unansweredCount}</div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.8, textTransform: 'uppercase' }}>Skipped</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scrollable Split Content Area */}
+        <div className="dash-content">
+          
+          {/* Left Column: Leaderboard */}
+          <div className="scroll-col">
+            <div className="card" style={{ marginBottom: '1rem' }}>
+              <h2 className="card-title"><Icons.Trophy /> High Scores</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {leaderboard.length === 0 ? <div style={{fontSize: '0.875rem', color: '#737373'}}>No scores yet.</div> : null}
+                {leaderboard.slice(0, 5).map((entry, idx) => {
+                  const isMe = entry.user_id === currentUser?.id
+                  return (
+                    <div key={entry.id || idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: isMe ? '#171717' : 'transparent', border: '1px solid', borderColor: isMe ? '#404040' : '#262626', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.875rem', color: isMe ? '#FAFAFA' : '#A3A3A3', fontWeight: isMe ? 600 : 400 }}>
+                        {idx + 1}. {isMe ? 'You' : `Player ${entry.user_id.slice(0, 4)}`}
+                      </span>
+                      <span style={{ fontSize: '0.875rem', color: '#FAFAFA', fontWeight: 500 }}>
+                        {entry.score} / {entry.total}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            
+            <Link href={fromCode ? `/lounge/${fromCode}` : '/quiz'} className="btn btn-primary" style={{ width: '100%', marginBottom: '1rem' }}>
+              {fromCode ? 'Return to Lounge' : 'Back to Dashboard'}
+            </Link>
+          </div>
+
+          {/* Right Column: Review Area */}
+          <div className="scroll-col">
+            <h2 style={{ fontSize: '1.125rem', color: '#FAFAFA', margin: '0 0 1rem 0' }}>Review Answers</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {questions.map((q, idx) => {
+                const myAns = answers[q.id]
+                const isCorrect = myAns === q.answer
+                const statusColor = isCorrect ? '#10b981' : myAns ? '#ef4444' : '#737373'
+                const statusBg = isCorrect ? '#022c22' : myAns ? '#450a0a' : '#171717'
+                
+                return (
+                  <div key={q.id} className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '1rem' }}>
+                      <h3 style={{ fontSize: '0.95rem', fontWeight: 500, margin: 0, lineHeight: 1.5, color: '#E5E5E5' }}>{idx + 1}. {q.question}</h3>
+                      <div className="badge" style={{ background: statusBg, color: statusColor, border: `1px solid ${statusColor}40`, flexShrink: 0 }}>
+                        {isCorrect ? <Icons.Check /> : myAns ? <Icons.X /> : <Icons.Dash />}
+                        {isCorrect ? 'Correct' : myAns ? 'Incorrect' : 'Skipped'}
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                      {myAns && !isCorrect && (
+                        <div style={{ fontSize: '0.875rem', color: '#ef4444', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                          <Icons.X /> <span style={{ paddingTop: '2px' }}>{q.choices[myAns]}</span>
+                        </div>
+                      )}
+                      <div style={{ fontSize: '0.875rem', color: '#10b981', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                        <Icons.Check /> <span style={{ paddingTop: '2px' }}>{q.choices[q.answer]}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '0.75rem', borderRadius: '6px', background: '#0A0A0A', border: '1px solid #262626', fontSize: '0.875rem', color: '#A3A3A3', lineHeight: 1.6 }}>
+                      <strong style={{ color: '#D4D4D4', fontWeight: 500 }}>Explanation:</strong> {q.explanation}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    )
+  }
+
+  // 📝 ACTIVE QUIZ VIEW
+  const currentQ = questions[currentIndex]
+  const hasAnswered = !!answers[currentQ?.id]
+  const myAnswer = answers[currentQ?.id]
+  const progress = ((currentIndex) / questions.length) * 100
+
+  return (
+    <div className="quiz-container">
+      <style>{baseStyles}</style>
+      <div className="active-quiz-wrapper">
+        <div className="active-max-w">
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <h1 style={{ fontSize: '1rem', fontWeight: 500, margin: 0, color: '#A3A3A3' }}>{quiz?.title || 'Assessment'}</h1>
+            <Link href={fromCode ? `/lounge/${fromCode}` : '/quiz'} className="btn btn-secondary" style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }}>Exit</Link>
+          </div>
+
+          <div className="card" style={{ padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#737373', marginBottom: '0.75rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <span>Question {currentIndex + 1} of {questions.length}</span>
+            </div>
+            
+            <div style={{ height: '4px', background: '#262626', borderRadius: '2px', marginBottom: '2rem', overflow: 'hidden' }}>
+              <div style={{ width: `${progress}%`, height: '100%', background: '#EDEDED', transition: 'width 0.3s ease' }} />
+            </div>
+
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 500, lineHeight: 1.5, margin: '0 0 2rem 0', color: '#FAFAFA' }}>{currentQ?.question}</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {['A', 'B', 'C', 'D'].map(key => {
+                if (!currentQ?.choices || !currentQ.choices[key]) return null
+                
+                const isThisChoiceMine = myAnswer === key
+                const isThisChoiceCorrect = currentQ.answer === key
+                
+                let btnStyle = {}
+                let keyStyle = {}
+
+                if (hasAnswered) {
+                  if (isThisChoiceCorrect) {
+                    btnStyle = { borderColor: '#059669', background: '#022c22', color: '#10b981' }
+                    keyStyle = { background: '#059669', color: '#fff' }
+                  } else if (isThisChoiceMine) {
+                    btnStyle = { borderColor: '#dc2626', background: '#450a0a', color: '#ef4444' }
+                    keyStyle = { background: '#dc2626', color: '#fff' }
+                  }
+                } else if (isThisChoiceMine) {
+                  btnStyle = { borderColor: '#A3A3A3', background: '#171717', color: '#FAFAFA' }
+                  keyStyle = { background: '#A3A3A3', color: '#0A0A0A' }
+                }
+
+                return (
+                  <button key={key} onClick={() => handleSelect(currentQ.id, key)} disabled={hasAnswered} className="choice-btn" style={btnStyle}>
+                    <span className="choice-key" style={keyStyle}>{key}</span>
+                    <span style={{ lineHeight: 1.5 }}>{currentQ.choices[key]}</span>
+                    
+                    {hasAnswered && isThisChoiceCorrect && <span style={{ marginLeft:'auto' }}><Icons.Check /></span>}
+                    {hasAnswered && isThisChoiceMine && !isThisChoiceCorrect && <span style={{ marginLeft:'auto' }}><Icons.X /></span>}
+                  </button>
+                )
+              })}
+            </div>
+
+            {hasAnswered && (
+              <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#0A0A0A', border: '1px solid #262626', borderRadius: '6px' }}>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#A3A3A3', lineHeight: 1.6 }}>
+                  <strong style={{ color: '#D4D4D4', fontWeight: 500 }}>Explanation: </strong>
+                  {currentQ?.explanation}
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+              {hasAnswered && (
+                <button onClick={handleNext} className="btn btn-primary">
+                  {currentIndex === questions.length - 1 ? 'View Results' : 'Continue'} <Icons.ArrowRight />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
-
-  return token && roomOptions ? (
-    <LiveKitRoom token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} audio={false} video={false} connect={true} options={roomOptions} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', position:'relative' }}>
-      {pageContent}
-    </LiveKitRoom>
-  ) : pageContent
 }

@@ -84,7 +84,7 @@ export default function EULA() {
       <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full px-6 py-8 gap-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Terms of Use</h1>
-          <p className="text-neutral-500 text-sm mt-1.5">Version 1.5 — Beta</p>
+          <p className="text-neutral-500 text-sm mt-1.5">Version 1.8 — Beta</p>
           <p className="text-neutral-400 text-sm mt-3 leading-relaxed">
             Please read these terms carefully before using Study with Aguila.
             Scroll to the bottom to accept.

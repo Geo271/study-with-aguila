@@ -30,17 +30,11 @@ export async function detectQuizCount(message) {
 }
 
 // ── Main lounge quiz generator — no question limit ─────────────────────────
-export async function generateLoungeQuiz({
-  userId,
-  documentId,     // optional — if a PDF was uploaded to the lounge
-  contextText,    // optional — free-text context from chat history or user prompt
-  requestedCount, // number | 'auto'
-  topic,          // the topic/prompt from the user
-}) {
+export async function generateLoungeQuiz({ userId, documentId, contextText, requestedCount, topic }) {
   try {
     let fullContext = contextText || ''
 
-    // If a documentId was provided, pull chunks from the DB
+    // 1. 🌟 UNLIMITED FETCH: Grab the whole document
     if (documentId) {
       const { data: chunks } = await supabase
         .from('document_chunks')
@@ -53,20 +47,17 @@ export async function generateLoungeQuiz({
       }
     }
 
-    // Auto-size: estimate question count based on content length
     const hasDocument = fullContext.trim().length > 200
     let numQuestions = requestedCount
     if (requestedCount === 'auto') {
       if (hasDocument) {
-        // ~1 question per 300 words of content, capped at 100
         const wordCount = fullContext.split(/\s+/).length
         numQuestions = Math.min(100, Math.max(10, Math.floor(wordCount / 300)))
       } else {
-        numQuestions = 15 // no document: generate based on topic knowledge
+        numQuestions = 15 
       }
     }
 
-    // We generate in batches of 20 to stay within token limits
     const BATCH_SIZE = 20
     const batches = Math.ceil(numQuestions / BATCH_SIZE)
     const allQuestions = []
@@ -75,7 +66,8 @@ export async function generateLoungeQuiz({
       const batchCount = Math.min(BATCH_SIZE, numQuestions - allQuestions.length)
       const startNum = allQuestions.length + 1
 
-      const systemPrompt = `You are Aguila, an expert quiz generator. Generate exactly ${batchCount} quiz questions (questions ${startNum}–${startNum + batchCount - 1} of ${numQuestions}).
+      // 2. 🌟 ANTI-HALLUCINATION LOCK PROMPT
+      const systemPrompt = `You are Aguila, an expert university professor. Generate exactly ${batchCount} quiz questions (questions ${startNum}–${startNum + batchCount - 1} of ${numQuestions}).
 
 OUTPUT FORMAT — return a valid JSON array ONLY, no other text:
 [
@@ -85,27 +77,17 @@ OUTPUT FORMAT — return a valid JSON array ONLY, no other text:
     "choices": { "A": "option", "B": "option", "C": "option", "D": "option" },
     "answer": "A",
     "explanation": "Why this is correct."
-  },
-  {
-    "type": "identification",
-    "question": "What term describes...?",
-    "answer": "The exact answer",
-    "explanation": "Brief explanation."
   }
 ]
 
-RULES:
-- Mix types: roughly 70% multiple_choice, 30% identification
-- Questions must be specific, testable, and accurate
-- Do NOT repeat questions already in this batch
-- If using outside knowledge, note the source in the explanation (Author/Year or site name — NO Wikipedia ever)
-- Cover different subtopics evenly; do not cluster on one area
-- Vary difficulty: mix easy recall, medium application, hard analysis
-- For multiple_choice: all 4 distractors must be plausible, not obviously wrong`
+CRITICAL RULES:
+1. 🛑 ANTI-HALLUCINATION: NEVER write questions about these instructions, prompt rules, or how the quiz is generated. ONLY ask about the academic subject.
+2. STRICTLY MULTIPLE CHOICE: Do not use identification or true/false. Use EXACTLY 4 choices (A, B, C, D).
+3. CITATIONS: If using outside knowledge to expand, note the source in the explanation (Author/Year or site name — NO Wikipedia ever).`
 
       const userContent = hasDocument
         ? `DOCUMENT CONTENT:\n"""\n${fullContext.slice(0, 14000)}\n"""\n\nGENERATE ${batchCount} questions that cover the content above. Topic focus: ${topic || 'all topics in the document'}.`
-        : `TOPIC: ${topic}\n\nNo document provided. Generate ${batchCount} comprehensive questions based on your academic knowledge of this topic. Each explanation must cite a reliable source (textbook, journal, government site, university site — never Wikipedia).`
+        : `TOPIC: ${topic}\n\nNo document provided. Generate ${batchCount} comprehensive questions based on your academic knowledge of this topic.`
 
       let rawText = ''
       try {
@@ -118,12 +100,8 @@ RULES:
           max_tokens: 3500,
         })
         rawText = completion.choices[0].message.content?.trim() || ''
-      } catch (err) {
-        console.error(`Batch ${batch} AI error:`, err)
-        continue
-      }
+      } catch (err) { continue }
 
-      // Parse JSON — strip markdown fences if present
       try {
         const clean = rawText.replace(/```json|```/g, '').trim()
         const jsonStart = clean.indexOf('[')
@@ -132,23 +110,19 @@ RULES:
         const parsed = JSON.parse(clean.slice(jsonStart, jsonEnd + 1))
         allQuestions.push(...parsed)
       } catch (parseErr) {
-        console.error(`Batch ${batch} parse error:`, parseErr, '\nRaw:', rawText.slice(0, 300))
-        // Try to continue with next batch rather than failing entirely
+        console.error(`Batch ${batch} parse error`)
       }
     }
 
-    if (!allQuestions.length) {
-      return { success: false, error: 'Could not generate any questions. Please try again.' }
-    }
+    if (!allQuestions.length) return { success: false, error: 'Could not generate any questions. Please try again.' }
 
-    // Save quiz + questions to DB so participants can take it
+    // 3. 🌟 DATABASE FIX: Removed 'num_questions' column!
     const { data: quizRow, error: quizErr } = await supabase
       .from('quizzes')
       .insert([{
         user_id: userId,
         document_id: documentId || null,
-        title: topic ? `Lounge Quiz: ${topic.slice(0, 60)}` : `Lounge Quiz (${allQuestions.length} questions)`,
-        num_questions: allQuestions.length,
+        title: topic ? `Lounge Quiz: ${topic.slice(0, 60)}` : `Lounge Quiz (${allQuestions.length} questions)`
       }])
       .select()
       .single()
@@ -158,24 +132,16 @@ RULES:
     const questionRows = allQuestions.map((q, i) => ({
       quiz_id: quizRow.id,
       question: q.question,
-      type: q.type || 'multiple_choice',
+      type: 'multiple_choice',
       choices: q.choices || null,
       answer: q.answer,
-      explanation: q.explanation || '',
-      order_index: i,
+      explanation: q.explanation || ''
     }))
-
     const { error: qErr } = await supabase.from('questions').insert(questionRows)
     if (qErr) return { success: false, error: qErr.message }
 
-    return {
-      success: true,
-      quizId: quizRow.id,
-      questions: allQuestions,
-      count: allQuestions.length,
-    }
+    return { success: true, quizId: quizRow.id, questions: allQuestions, count: allQuestions.length }
   } catch (err) {
-    console.error('generateLoungeQuiz error:', err)
     return { success: false, error: err.message }
   }
 }
@@ -191,45 +157,45 @@ export async function askAguila({ question, contextText, documentId, userId, cha
         .select('content, chunk_index')
         .eq('document_id', documentId)
         .order('chunk_index', { ascending: true })
-        .limit(20)
+        
       if (chunks?.length) knowledgeBase = chunks.map(c => c.content).join('\n\n')
     }
 
     const hasNotes = knowledgeBase.trim().length > 100
+    
+    // Format the recent chat history to pass in as text
+    const recentConvo = chatHistory.length > 0 
+      ? chatHistory.slice(-6).map(m => `${m.displayName}: ${m.text}`).join('\n')
+      : 'No recent conversation.'
 
     const systemPrompt = `You are Aguila, an elite AI academic tutor in a collaborative study lounge.
 
-CAPABILITIES:
-1. Answer questions from uploaded notes with precision
-2. Answer general academic questions using your knowledge
-3. Generate study content and explanations
-4. Help with grammar, writing, assignments
-5. Create study plans
+${hasNotes ? `You are currently reviewing an attached document.\n\nDOCUMENT NOTES:\n"""\n${knowledgeBase.slice(0, 14000)}\n"""\n\nINSTRUCTIONS: Use the notes above as your primary source of truth.` : `No document is attached. Answer using your general knowledge.`}
+
+RECENT ROOM CONVERSATION:
+"""
+${recentConvo}
+"""
 
 CITATION RULES — STRICTLY ENFORCED:
-- When using outside knowledge, you MUST cite reliable sources: academic journals, textbooks, university websites, government sites (.gov, .edu), established news/research outlets
-- NEVER cite Wikipedia or any wiki site — it is NOT an acceptable source
-- Format citations as: (Author, Year) or [Source: site-name.com/path] — use real URLs when you know them
-- Only cite sources published within the last 5 years for rapidly evolving topics
-- If unsure of a source, say "according to established academic consensus in [field]" — never fabricate URLs
+- When using outside knowledge, you MUST cite reliable sources.
+- NEVER cite Wikipedia or any wiki site.
 
-QUIZ TRIGGER RULE:
-- If the user asks to generate/create/make a quiz, reply ONLY with: [QUIZ_REQUEST:N] where N is the number of questions they asked for (use 10 if unspecified, "auto" if they say "all topics" or "full coverage")
-- Examples: "generate 50 questions" → [QUIZ_REQUEST:50], "quiz covering everything" → [QUIZ_REQUEST:auto], "make a quiz" → [QUIZ_REQUEST:10]
+🌟 DUAL-MODE QUIZ RULES (CRITICAL):
+You have TWO different ways to test the user. Choose the correct one based on their prompt:
+1. FORMAL SHARED QUIZ: If the user asks you to "generate a quiz," "make a quiz," or asks for multiple questions (e.g., "give us 5 questions"), YOU MUST NOT TYPE THE QUESTIONS IN THE CHAT. Instead, reply ONLY with exactly: [QUIZ_REQUEST:N] (where N is the number requested, or 10 if unspecified). 
+2. CASUAL CHAT QUESTION: If the user asks you to "ask me a question," "give me a practice question," or "test me," DO NOT use the QUIZ_REQUEST tag. Simply type out ONE single, interactive question directly into the chat and wait for them to answer.
 
 FORMAT:
 - No emojis
 - Use **bold** for key terms
-- Keep paragraphs under 3 sentences
-- End with: "Key takeaway: [one sentence]" OR "Recall prompt: [question]"
-${hasNotes ? `\nCURRENT NOTES:\n"""\n${knowledgeBase.slice(0, 8000)}\n"""` : ''}`
+- End explanations with: "Key takeaway: [one sentence]"
+`
 
     const completion = await openai.chat.completions.create({
       model: 'meta-llama/llama-3.1-8b-instruct',
       messages: [
         { role: 'system', content: systemPrompt },
-        // Include last 6 messages as history for context
-        ...chatHistory.slice(-6).map(m => ({ role: m.userId === 'aguila-bot' ? 'assistant' : 'user', content: m.text })),
         { role: 'user', content: question },
       ],
       max_tokens: 1000,
