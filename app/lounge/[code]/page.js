@@ -334,6 +334,7 @@ function DPadBtn({ icon, dir, setMovement }) {
   )
 }
 
+// ── Music widget (with background play fix) ────────────────────────────────
 function MusicWidget({ globalMusic, setGlobalMusic }) {
   const [minimized, setMinimized] = useState(false)
   if (!globalMusic?.url) return null
@@ -350,15 +351,22 @@ function MusicWidget({ globalMusic, setGlobalMusic }) {
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           {Ic.music('w-3 h-3')}
           <span style={{ fontSize:10, color:'#71717a', fontWeight:600 }}>Room DJ</span>
-          {minimized && <span style={{ fontSize:10, color:'#52525b' }}>— playing</span>}
+          {minimized && <span style={{ fontSize:10, color:'#4ade80' }}>— playing in background</span>}
         </div>
         <div style={{ display:'flex', gap:4 }}>
           <button onClick={() => setMinimized(m => !m)} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex', borderRadius:4 }}>{minimized ? Ic.maximize('w-3.5 h-3.5') : Ic.minimize('w-3.5 h-3.5')}</button>
           <button onClick={() => setGlobalMusic({ url:'' })} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex', borderRadius:4 }}>{Ic.x('w-3.5 h-3.5')}</button>
         </div>
       </div>
-      {!minimized && (
-        isYT ? (
+      
+      {/* 🌟 FIX: Instead of destroying the player, we shrink its height to 0px and hide the overflow! 
+          This keeps the iframe loaded in the DOM so the music continues to play. */}
+      <div style={{ 
+        height: minimized ? 0 : (isSpotify ? 152 : 160), 
+        overflow: 'hidden', 
+        transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+      }}>
+        {isYT ? (
           <div style={{ pointerEvents:'auto' }}>
             <YouTube 
               videoId={globalMusic.url.includes('videoseries') ? null : globalMusic.url.split('embed/')[1].split('?')[0]}
@@ -370,8 +378,8 @@ function MusicWidget({ globalMusic, setGlobalMusic }) {
           </div>
         ) : (
           <iframe src={embedUrl} width="100%" height={isSpotify ? 152 : 160} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowFullScreen style={{ display:'block' }} />
-        )
-      )}
+        )}
+      </div>
     </div>
   )
 }
