@@ -932,7 +932,9 @@ function InLoungeQuiz({ quizId, onClose, presenceList = [] }) {
                   return (
                     <div key={e.id || i} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, background:isMe ? 'rgba(99,102,241,0.1)' : 'transparent', border:`1px solid ${isMe ? 'rgba(99,102,241,0.25)' : 'transparent'}`, marginBottom:4 }}>
                       <span style={{ width:22, textAlign:'center' }}>{medals[i] || `${i+1}.`}</span>
-                      <span style={{ flex:1, fontSize:12, color:isMe ? '#c7d2fe' : '#a1a1aa', fontWeight:isMe ? 700 : 400 }}>{isMe ? 'You' : `Player ${e.user_id.slice(0,6)}`}</span>
+                      <span style={{ flex:1, fontSize:12, color:isMe ? '#c7d2fe' : '#a1a1aa', fontWeight:isMe ? 700 : 400 }}>
+                        {isMe ? 'You' : (nameMap[e.user_id] || `Player ${e.user_id.slice(0,6)}`)}
+                      </span>
                       <span style={{ fontSize:12, color:'#e4e4e7', fontWeight:600 }}>{epct}%</span>
                       <span style={{ fontSize:11, color:'#52525b' }}>{e.score}/{e.total}</span>
                     </div>
