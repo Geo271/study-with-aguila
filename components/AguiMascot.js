@@ -68,13 +68,89 @@ const MASCOT_IMAGES = {
 }
 
 const SIZE_MAP = {
+  xs: { width: 48, shadow: 'w-10' },
   sm: { width: 84, shadow: 'w-16' },
   md: { width: 120, shadow: 'w-24' },
   lg: { width: 160, shadow: 'w-32' },
   xl: { width: 196, shadow: 'w-40' },
 }
 
-const RETRO_SPARKS = ['+15 EXP ⚡', 'FOCUS +1 🎯', 'STREAK x3 🔥', 'CRITICAL RECALL 🧠', 'LEVEL UP! 🌟']
+const RETRO_SPARKS = [
+  '+15 EXP ⚡',
+  'FOCUS +1 🎯',
+  'STREAK x3 🔥',
+  'CRITICAL RECALL 🧠',
+  'LEVEL UP! 🌟',
+  'AURA 100% 🦅',
+  'BIG BRAIN 💡',
+]
+
+const ACCESSORIES = [
+  { id: 'none', label: 'Natural', icon: '🪶' },
+  { id: 'glasses', label: 'Scholar', icon: '👓' },
+  { id: 'cap', label: 'Graduate', icon: '🎓' },
+  { id: 'headphones', label: 'Lo-Fi', icon: '🎧' },
+  { id: 'crown', label: 'Honor', icon: '👑' },
+  { id: 'headband', label: 'Focus', icon: '🥋' },
+]
+
+// ── Native 8-Bit Web Audio Synthesizer (Zero External Dependencies) ─────────
+function play8BitAudio(type = 'chirp') {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    if (ctx.state === 'suspended') {
+      ctx.resume()
+    }
+    const now = ctx.currentTime
+
+    if (type === 'chirp') {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'square'
+      osc.frequency.setValueAtTime(680, now)
+      osc.frequency.exponentialRampToValueAtTime(1350, now + 0.07)
+      osc.frequency.exponentialRampToValueAtTime(980, now + 0.13)
+      gain.gain.setValueAtTime(0.05, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(now)
+      osc.stop(now + 0.15)
+    } else if (type === 'purr') {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(440, now)
+      osc.frequency.linearRampToValueAtTime(560, now + 0.05)
+      osc.frequency.linearRampToValueAtTime(500, now + 0.1)
+      gain.gain.setValueAtTime(0.05, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(now)
+      osc.stop(now + 0.12)
+    } else if (type === 'xp') {
+      const notes = [523.25, 659.25, 783.99, 1046.50]
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'triangle'
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05)
+        gain.gain.setValueAtTime(0.05, now + idx * 0.05)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.07)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(now + idx * 0.05)
+        osc.stop(now + idx * 0.05 + 0.08)
+      })
+    }
+  } catch (e) {
+    // Audio context not allowed or not ready yet
+  }
+}
 
 export default function AguiMascot({
   mood = 'idle',
@@ -85,19 +161,48 @@ export default function AguiMascot({
   guidanceBadge = '',
   onQuickPrompt = null,
   animationDelay = '0s',
+  isTyping = false,
+  isInputFocused = false,
+  interactive = true,
 }) {
   const [guideIndex, setGuideIndex] = useState(0)
-  const [isNodding, setIsNodding] = useState(false)
+  const [isSquashing, setIsSquashing] = useState(false)
+  const [isHappy, setIsHappy] = useState(false)
+  const [isBlinking, setIsBlinking] = useState(false)
   const [particles, setParticles] = useState([])
+  const [hearts, setHearts] = useState([])
   const [bubbleKey, setBubbleKey] = useState(0)
   const [interactiveMsg, setInteractiveMsg] = useState(null)
+  const [accessory, setAccessory] = useState('none')
+  const [soundEnabled, setSoundEnabled] = useState(false)
 
+  // Mouse & gaze tracking states
+  const [gaze, setGaze] = useState({ tiltX: 0, tiltY: 0, pupilX: 0, pupilY: 0 })
+
+  const mascotRef = useRef(null)
   const timerRef = useRef(null)
-  const nodTimeoutRef = useRef(null)
+  const squashTimeoutRef = useRef(null)
+  const happyTimeoutRef = useRef(null)
+  const petCounterRef = useRef({ count: 0, lastTime: 0 })
+  const rafRef = useRef(null)
 
   const messages = MOOD_MESSAGES[mood] || MOOD_MESSAGES.idle
   const mascotSrc = MASCOT_IMAGES[mood] || MASCOT_IMAGES.idle
   const sizeConfig = SIZE_MAP[size] || SIZE_MAP.lg
+
+  // Load persisted accessory & sound preference
+  useEffect(() => {
+    try {
+      const savedAcc = localStorage.getItem('aguila_accessory')
+      if (savedAcc && ACCESSORIES.some(a => a.id === savedAcc)) {
+        setAccessory(savedAcc)
+      }
+      const savedSound = localStorage.getItem('aguila_sound')
+      if (savedSound === 'true') {
+        setSoundEnabled(true)
+      }
+    } catch (e) {}
+  }, [])
 
   // Rotate guidance steps smoothly every 8 seconds when idle
   useEffect(() => {
@@ -107,26 +212,120 @@ export default function AguiMascot({
       setGuideIndex(i => (i + 1) % GUIDANCE_STEPS.length)
       setInteractiveMsg(null)
       setBubbleKey(k => k + 1)
-    }, 8000)
+    }, 8500)
 
     return () => clearInterval(timerRef.current)
   }, [customMessage, guidanceText])
 
+  // ── Natural Blinking Engine (Organic intervals + realistic double blinks) ──
   useEffect(() => {
+    let blinkTimeout
+    let closeTimeout
+
+    const scheduleBlink = () => {
+      const delay = 3200 + Math.random() * 2800 // 3.2s - 6s
+      blinkTimeout = setTimeout(() => {
+        setIsBlinking(true)
+        closeTimeout = setTimeout(() => {
+          setIsBlinking(false)
+          // 25% chance of realistic double-blink
+          if (Math.random() < 0.25) {
+            setTimeout(() => {
+              setIsBlinking(true)
+              setTimeout(() => {
+                setIsBlinking(false)
+                scheduleBlink()
+              }, 110)
+            }, 140)
+          } else {
+            scheduleBlink()
+          }
+        }, 130)
+      }, delay)
+    }
+
+    scheduleBlink()
+
     return () => {
-      if (nodTimeoutRef.current) clearTimeout(nodTimeoutRef.current)
+      clearTimeout(blinkTimeout)
+      clearTimeout(closeTimeout)
     }
   }, [])
 
-  // Thoughtful retro interaction
-  const handleMascotInteract = useCallback(() => {
-    setIsNodding(false)
-    if (nodTimeoutRef.current) clearTimeout(nodTimeoutRef.current)
+  // ── Interactive Cursor & Gaze Tracking (Tarsi-style alive tracking) ──────
+  useEffect(() => {
+    if (!interactive) return
 
+    const handleMouseMove = (e) => {
+      if (!mascotRef.current) return
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+
+      rafRef.current = requestAnimationFrame(() => {
+        const rect = mascotRef.current?.getBoundingClientRect()
+        if (!rect) return
+
+        const mascotCenterX = rect.left + rect.width / 2
+        const mascotCenterY = rect.top + rect.height * 0.45
+
+        const dx = (e.clientX - mascotCenterX) / (window.innerWidth / 2)
+        const dy = (e.clientY - mascotCenterY) / (window.innerHeight / 2)
+
+        // Clamped realistic raptor eye and head tilt angles
+        let targetTiltY = Math.max(-12, Math.min(12, dx * 12))
+        let targetTiltX = Math.max(-9, Math.min(9, -dy * 9))
+        let targetPupilX = Math.max(-2.2, Math.min(2.2, dx * 2.2))
+        let targetPupilY = Math.max(-1.8, Math.min(1.8, dy * 1.8))
+
+        // Focus bias if student is typing or AI is generating
+        if (isInputFocused) {
+          targetTiltX = -5 // Leans head down to look at keyboard/chat input
+          targetPupilY = 1.9 // Eyes cast down at input bar
+        } else if (isTyping) {
+          targetTiltX = 6 // Head tilted back thoughtfully
+          targetTiltY = 4
+          targetPupilY = -1.8 // Glancing up into thought
+          targetPupilX = 1.2
+        }
+
+        setGaze({
+          tiltX: Number(targetTiltX.toFixed(2)),
+          tiltY: Number(targetTiltY.toFixed(2)),
+          pupilX: Number(targetPupilX.toFixed(2)),
+          pupilY: Number(targetPupilY.toFixed(2)),
+        })
+      })
+    }
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true })
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [interactive, isInputFocused, isTyping])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (squashTimeoutRef.current) clearTimeout(squashTimeoutRef.current)
+      if (happyTimeoutRef.current) clearTimeout(happyTimeoutRef.current)
+    }
+  }, [])
+
+  // ── Thoughtful Retro Tap / Poke Micro-Interaction ────────────────────────
+  const handleMascotInteract = useCallback(() => {
+    setIsSquashing(false)
+    if (squashTimeoutRef.current) clearTimeout(squashTimeoutRef.current)
+
+    // Trigger elastic squash-and-stretch
     setTimeout(() => {
-      setIsNodding(true)
-      nodTimeoutRef.current = setTimeout(() => setIsNodding(false), 360)
+      setIsSquashing(true)
+      squashTimeoutRef.current = setTimeout(() => setIsSquashing(false), 420)
     }, 10)
+
+    if (soundEnabled) {
+      play8BitAudio('chirp')
+    }
 
     // Spawn retro 16-bit floating stat badge
     const newId = Date.now() + Math.random()
@@ -143,9 +342,42 @@ export default function AguiMascot({
     }, 850)
 
     setGuideIndex(i => (i + 1) % GUIDANCE_STEPS.length)
-    setInteractiveMsg("Click any study tool below or ask me a question in chat — I'm right here to guide you.")
+    setInteractiveMsg("I'm tracking your progress! Ask me anything or click a study hook below.")
     setBubbleKey(k => k + 1)
-  }, [])
+  }, [soundEnabled])
+
+  // ── Petting Micro-Interaction (Stroking or rapid hover passes) ────────────
+  const handleMascotHoverStroke = useCallback(() => {
+    const now = Date.now()
+    const tracker = petCounterRef.current
+
+    if (now - tracker.lastTime < 450) {
+      tracker.count += 1
+    } else {
+      tracker.count = 1
+    }
+    tracker.lastTime = now
+
+    // After 3 quick strokes, Aguila enters happy purr mode!
+    if (tracker.count >= 3) {
+      tracker.count = 0
+      setIsHappy(true)
+      if (happyTimeoutRef.current) clearTimeout(happyTimeoutRef.current)
+      happyTimeoutRef.current = setTimeout(() => setIsHappy(false), 1200)
+
+      if (soundEnabled) {
+        play8BitAudio('purr')
+      }
+
+      // Spawn floating hearts
+      const heartId = Date.now() + Math.random()
+      const tx = Math.floor(Math.random() * 28) - 14
+      setHearts(prev => [...prev.slice(-3), { id: heartId, text: '❤️', tx: `${tx}px` }])
+      setTimeout(() => {
+        setHearts(prev => prev.filter(h => h.id !== heartId))
+      }, 900)
+    }
+  }, [soundEnabled])
 
   const handleBubbleCycle = () => {
     setGuideIndex(i => (i + 1) % GUIDANCE_STEPS.length)
@@ -153,31 +385,57 @@ export default function AguiMascot({
     setBubbleKey(k => k + 1)
   }
 
+  const cycleAccessory = () => {
+    const currentIdx = ACCESSORIES.findIndex(a => a.id === accessory)
+    const nextIdx = (currentIdx + 1) % ACCESSORIES.length
+    const nextAcc = ACCESSORIES[nextIdx].id
+    setAccessory(nextAcc)
+    try {
+      localStorage.setItem('aguila_accessory', nextAcc)
+    } catch (e) {}
+    if (soundEnabled) play8BitAudio('xp')
+  }
+
+  const toggleSound = () => {
+    const next = !soundEnabled
+    setSoundEnabled(next)
+    try {
+      localStorage.setItem('aguila_sound', String(next))
+    } catch (e) {}
+    if (next) play8BitAudio('chirp')
+  }
+
   const activeGuide = GUIDANCE_STEPS[guideIndex]
   const currentBadge = guidanceBadge || (guidanceText ? 'Action Guide' : (interactiveMsg ? 'Agui Study Tip' : (customMessage ? 'Status' : activeGuide.badge)))
   const displayMsg = guidanceText || interactiveMsg || customMessage || (mood === 'idle' ? activeGuide.text : messages[0])
 
-  const isThinking = mood === 'thinking'
-  const isStudying = mood === 'studying'
-  const isCelebrating = mood === 'celebrating'
-  const isTimer = mood === 'timer'
+  const isThinkingMood = mood === 'thinking' || isTyping
+  const isStudyingMood = mood === 'studying'
+  const isCelebratingMood = mood === 'celebrating'
+  const isTimerMood = mood === 'timer'
+
+  // Eye happiness: active celebration, petting, or happy trigger
+  const showHappyEyes = isHappy || isCelebratingMood
 
   return (
-    <div className="flex flex-col items-center select-none relative max-w-sm mx-auto">
+    <div 
+      ref={mascotRef}
+      className="flex flex-col items-center select-none relative max-w-sm mx-auto"
+    >
       {/* ── Retro 16-Bit RPG Dialogue Box / Study Guide ── */}
       {showBubble && (
         <div 
           key={bubbleKey}
           onClick={handleBubbleCycle}
           title="Click to cycle study guide"
-          className="relative mb-3 max-w-[300px] sm:max-w-[330px] cursor-pointer group animate-aguila-bubble focus:outline-none z-20"
+          className="relative mb-3 max-w-[300px] sm:max-w-[340px] cursor-pointer group animate-aguila-bubble focus:outline-none z-20"
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBubbleCycle() } }}
         >
           {/* Retro RPG Dialogue Panel */}
-          <div className="bg-neutral-900/95 border-2 border-neutral-700/80 group-hover:border-amber-400/80 px-4 py-2.5 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.8)] backdrop-blur-md transition-all duration-200">
-            {/* Retro Badge Header */}
+          <div className="bg-neutral-900/95 border-2 border-neutral-700/80 group-hover:border-amber-400/80 px-4 py-2.5 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.85)] backdrop-blur-md transition-all duration-200">
+            {/* Retro Badge Header & Interactive Controls */}
             <div className="flex items-center justify-between gap-1.5 mb-1 pb-1 border-b border-neutral-800">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-amber-400 inline-block shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
@@ -185,21 +443,45 @@ export default function AguiMascot({
                   {currentBadge}
                 </span>
               </div>
-              <span className="text-[9px] text-neutral-500 font-mono">
-                LVL 5 🦅
-              </span>
+
+              {/* Quick Outfit & Audio Controls */}
+              <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={cycleAccessory}
+                  className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-[10px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700 flex items-center gap-1"
+                  title="Cycle retro RPG outfit (Glasses, Cap, Headphones, Crown, Headband)"
+                >
+                  <span>{ACCESSORIES.find(a => a.id === accessory)?.icon || '🪶'}</span>
+                  <span className="hidden sm:inline text-[9px] uppercase">Outfit</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={toggleSound}
+                  className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-[10px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700"
+                  title={soundEnabled ? '8-Bit audio enabled (click to mute)' : 'Muted (click to enable 8-bit sounds)'}
+                >
+                  {soundEnabled ? '🔊' : '🔇'}
+                </button>
+
+                <span className="text-[9px] text-neutral-500 font-mono ml-0.5">
+                  LVL 5 🦅
+                </span>
+              </div>
             </div>
 
             <p className="text-xs font-medium text-neutral-200 leading-relaxed font-sans">
               {displayMsg}
             </p>
 
-            {isThinking && (
-              <span className="inline-flex gap-1.5 items-center justify-center mt-2">
-                <span className="w-1.5 h-1.5 bg-amber-400 animate-ping" />
-                <span className="w-1.5 h-1.5 bg-amber-400 opacity-75" />
-                <span className="w-1.5 h-1.5 bg-amber-400 opacity-50" />
-              </span>
+            {isThinkingMood && (
+              <div className="flex items-center gap-2 mt-2 pt-1 border-t border-neutral-800/80">
+                <span className="w-1.5 h-1.5 bg-amber-400 animate-ping inline-block" />
+                <span className="text-[10px] font-mono text-amber-400 font-semibold tracking-wider">
+                  AGUI IS THINKING...
+                </span>
+              </div>
             )}
 
             <div className="flex items-center justify-between text-[9px] text-neutral-500 mt-1.5 font-mono pt-1">
@@ -224,15 +506,26 @@ export default function AguiMascot({
             {p.text}
           </span>
         ))}
+
+        {hearts.map(h => (
+          <span
+            key={h.id}
+            className="absolute text-base font-bold text-rose-400 animate-aguila-heart drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+            style={{ '--h-tx': h.tx }}
+          >
+            {h.text}
+          </span>
+        ))}
       </div>
 
-      {/* ── Authentic Pixel Art Retro Mascot (Zero Background Box, Pixel Art Scaled) ── */}
+      {/* ── Living Interactive Mascot Container (Tracks cursor in 3D perspective) ── */}
       <div 
         className="relative flex flex-col items-center justify-center cursor-pointer aguila-clickable focus:outline-none"
         onClick={handleMascotInteract}
+        onMouseMove={handleMascotHoverStroke}
         role="button"
         tabIndex={0}
-        aria-label="Agui the retro study guide mascot - click for a study tip"
+        aria-label="Agui the interactive retro study guide mascot - click or pet for reaction"
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -247,19 +540,24 @@ export default function AguiMascot({
           style={{ top: '10%' }}
         />
 
-        {/* Authentic Pixel Art Character Sprite */}
+        {/* ── 3D Head & Body Tracking Wrapper ────────────────────────────── */}
         <div 
-          className={`relative z-10 transition-transform ${
-            isStudying || isThinking ? 'animate-aguila-studying' : 'animate-aguila-alive'
-          } ${isNodding ? 'animate-aguila-nod' : ''}`}
+          className={`relative z-10 transition-transform duration-100 ease-out ${
+            isStudyingMood || isThinkingMood ? 'animate-aguila-studying' : 'animate-aguila-alive'
+          } ${isSquashing ? 'animate-aguila-squash' : ''}`}
+          style={{
+            transform: `perspective(500px) rotateX(${gaze.tiltX}deg) rotateY(${gaze.tiltY}deg)`,
+            transformOrigin: '50% 85%',
+          }}
         >
+          {/* Base Pixel Art Philippine Eagle Sprite */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={mascotSrc}
             alt={`Aguila mascot - ${mood}`}
             width={sizeConfig.width}
             height={sizeConfig.width}
-            className="aguila-sprite object-contain select-none pointer-events-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)] transition-all duration-200"
+            className="aguila-sprite object-contain select-none pointer-events-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)] transition-all duration-150"
             style={{
               imageRendering: 'pixelated',
               width: `${sizeConfig.width}px`,
@@ -267,19 +565,194 @@ export default function AguiMascot({
             }}
           />
 
-          {/* Active study status indicator */}
-          {isTimer && (
-            <span className="absolute bottom-2 right-2 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded h-4 w-4 bg-amber-500 border-2 border-neutral-950 font-mono text-[9px] font-bold items-center justify-center text-neutral-950">
-                ⏱
+          {/* ── Dynamic Living Eyes & Gaze Overlay (SVG layer) ───────────── */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none select-none z-20"
+            viewBox="0 0 100 100"
+            style={{ imageRendering: 'pixelated' }}
+            aria-hidden="true"
+          >
+            {/* Left Eye & Pupil */}
+            <g transform="translate(37, 41)">
+              {showHappyEyes ? (
+                // Happy curved squint eye (⌒)
+                <path
+                  d="M -3 1 Q 0 -3 3 1"
+                  stroke="#F59E0B"
+                  strokeWidth="1.8"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              ) : (
+                <>
+                  {/* Dynamic pupil tracking cursor */}
+                  <rect
+                    x={-1.5 + gaze.pupilX}
+                    y={-1.5 + gaze.pupilY}
+                    width="3"
+                    height="3"
+                    fill="#0F172A"
+                  />
+                  {/* Specular Glint */}
+                  <rect
+                    x={-0.5 + gaze.pupilX * 0.4}
+                    y={-1.5 + gaze.pupilY * 0.4}
+                    width="1.2"
+                    height="1.2"
+                    fill="#FFFFFF"
+                  />
+                  {/* Dynamic Eyelid Blinking */}
+                  {isBlinking && (
+                    <rect
+                      x="-4"
+                      y="-3.5"
+                      width="8"
+                      height="7"
+                      fill="#78350F"
+                    />
+                  )}
+                </>
+              )}
+            </g>
+
+            {/* Right Eye & Pupil */}
+            <g transform="translate(61, 41)">
+              {showHappyEyes ? (
+                // Happy curved squint eye (⌒)
+                <path
+                  d="M -3 1 Q 0 -3 3 1"
+                  stroke="#F59E0B"
+                  strokeWidth="1.8"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              ) : (
+                <>
+                  {/* Dynamic pupil tracking cursor */}
+                  <rect
+                    x={-1.5 + gaze.pupilX}
+                    y={-1.5 + gaze.pupilY}
+                    width="3"
+                    height="3"
+                    fill="#0F172A"
+                  />
+                  {/* Specular Glint */}
+                  <rect
+                    x={-0.5 + gaze.pupilX * 0.4}
+                    y={-1.5 + gaze.pupilY * 0.4}
+                    width="1.2"
+                    height="1.2"
+                    fill="#FFFFFF"
+                  />
+                  {/* Dynamic Eyelid Blinking */}
+                  {isBlinking && (
+                    <rect
+                      x="-4"
+                      y="-3.5"
+                      width="8"
+                      height="7"
+                      fill="#78350F"
+                    />
+                  )}
+                </>
+              )}
+            </g>
+
+            {/* ── Retro RPG Accessories Layer ───────────────────────────── */}
+            {/* 1. Scholar Glasses */}
+            {accessory === 'glasses' && (
+              <g id="retro-glasses" transform="translate(0, -1)">
+                {/* Left wireframe frame */}
+                <rect x="33" y="37" width="9" height="9" fill="none" stroke="#FBBF24" strokeWidth="1.5" />
+                <rect x="34" y="38" width="7" height="7" fill="#38BDF8" fillOpacity="0.15" />
+                {/* Right wireframe frame */}
+                <rect x="56" y="37" width="9" height="9" fill="none" stroke="#FBBF24" strokeWidth="1.5" />
+                <rect x="57" y="38" width="7" height="7" fill="#38BDF8" fillOpacity="0.15" />
+                {/* Bridge */}
+                <line x1="42" y1="41" x2="56" y2="41" stroke="#FBBF24" strokeWidth="1.5" />
+                {/* Glint line */}
+                <line x1="35" y1="39" x2="39" y2="43" stroke="#FFFFFF" strokeWidth="0.8" opacity="0.8" />
+              </g>
+            )}
+
+            {/* 2. Graduation Mortarboard */}
+            {accessory === 'cap' && (
+              <g id="retro-mortarboard" transform="translate(0, -4)">
+                {/* Cap diamond */}
+                <polygon points="49,12 76,20 49,28 22,20" fill="#18181B" stroke="#27272A" strokeWidth="1" />
+                {/* Cap skull cap */}
+                <rect x="38" y="24" width="22" height="7" fill="#09090B" rx="1" />
+                {/* Gold tassel button */}
+                <circle cx="49" cy="20" r="1.5" fill="#F59E0B" />
+                {/* Swinging tassel ribbon */}
+                <path d="M 49 20 Q 38 22 36 29" stroke="#F59E0B" strokeWidth="1.2" fill="none" />
+                <rect x="34.5" y="29" width="3" height="4" fill="#D97706" />
+              </g>
+            )}
+
+            {/* 3. Lo-Fi Study Headphones */}
+            {accessory === 'headphones' && (
+              <g id="retro-headphones" transform="translate(0, 2)">
+                {/* Headband arch */}
+                <path d="M 28 42 C 28 18, 70 18, 70 42" fill="none" stroke="#71717A" strokeWidth="2.2" strokeLinecap="round" />
+                {/* Left orange foam earcup */}
+                <rect x="24" y="38" width="6" height="12" rx="2" fill="#F97316" stroke="#C2410C" strokeWidth="1" />
+                {/* Right orange foam earcup */}
+                <rect x="68" y="38" width="6" height="12" rx="2" fill="#F97316" stroke="#C2410C" strokeWidth="1" />
+              </g>
+            )}
+
+            {/* 4. Honor Student Crown */}
+            {accessory === 'crown' && (
+              <g id="retro-crown" transform="translate(0, -5)">
+                {/* Golden crown peaks */}
+                <polygon points="34,22 36,12 43,18 49,10 55,18 62,12 64,22" fill="#F59E0B" stroke="#D97706" strokeWidth="1" />
+                {/* Crown base */}
+                <rect x="34" y="22" width="30" height="4" fill="#D97706" />
+                {/* Ruby & Sapphire Jewels */}
+                <circle cx="41" cy="24" r="1.2" fill="#EF4444" />
+                <circle cx="49" cy="24" r="1.2" fill="#3B82F6" />
+                <circle cx="57" cy="24" r="1.2" fill="#10B981" />
+              </g>
+            )}
+
+            {/* 5. Focus Martial Arts Headband */}
+            {accessory === 'headband' && (
+              <g id="retro-headband" transform="translate(0, 1)">
+                {/* Red band across crest */}
+                <rect x="30" y="31" width="38" height="4.5" fill="#DC2626" rx="1" />
+                {/* White sun crest badge */}
+                <circle cx="49" cy="33.2" r="1.8" fill="#FFFFFF" />
+                {/* Fluttering tie ribbons */}
+                <path d="M 67 33 Q 73 35 77 40" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" />
+                <path d="M 68 34 Q 75 39 76 44" fill="none" stroke="#B91C1C" strokeWidth="1.8" strokeLinecap="round" />
+              </g>
+            )}
+          </svg>
+
+          {/* ── Active Status Overlays ─────────────────────────────────── */}
+          {/* Thinking / Synthesizing Gear */}
+          {isThinkingMood && (
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
+              <span className="text-sm animate-aguila-gear inline-block drop-shadow-[0_2px_6px_rgba(251,191,36,0.8)]">
+                ⚙️
               </span>
-            </span>
+            </div>
           )}
 
-          {isCelebrating && (
-            <span className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 font-mono text-[10px] font-bold border border-emerald-400 shadow-[2px_2px_0px_rgba(0,0,0,0.8)] animate-bounce">
-              A+
+          {/* Timer Focus Mode Equalizer */}
+          {isTimerMood && (
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-end gap-1 pointer-events-none px-2 py-0.5 rounded bg-neutral-950/80 border border-amber-500/30">
+              <span className="w-1 bg-amber-400 rounded-full inline-block animate-pulse" style={{ height: '8px' }} />
+              <span className="w-1 bg-amber-300 rounded-full inline-block animate-pulse" style={{ height: '14px', animationDelay: '0.15s' }} />
+              <span className="w-1 bg-amber-500 rounded-full inline-block animate-pulse" style={{ height: '10px', animationDelay: '0.3s' }} />
+            </div>
+          )}
+
+          {/* Celebrating Trophy Badge */}
+          {isCelebratingMood && (
+            <span className="absolute -top-3 -right-3 px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 font-mono text-[10px] font-bold border border-emerald-400 shadow-[2px_2px_0px_rgba(0,0,0,0.8)] animate-bounce">
+              A+ 🏆
             </span>
           )}
         </div>
@@ -308,6 +781,82 @@ export default function AguiMascot({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── In-Chat Persistent Mini Companion (Tarsi companion for live study) ──────
+export function AguiInChatCompanion({
+  isTyping = false,
+  messageCount = 0,
+  onTipClick = null,
+}) {
+  const [isHovered, setIsHovered] = useState(false)
+  const [speech, setSpeech] = useState('')
+  const [showSpeech, setShowSpeech] = useState(false)
+
+  const handlePoke = () => {
+    play8BitAudio('chirp')
+    const tips = [
+      "Keep the momentum going! Active recall builds real synaptic strength.",
+      "Stuck? Click 'ELI5' under any explanation for an intuitive analogy.",
+      "Test yourself before the exam: try the 'Flashcard Drill' in the tool bar!",
+      "I'm keeping track of key concepts from your uploaded notes.",
+    ]
+    const chosen = tips[Math.floor(Math.random() * tips.length)]
+    setSpeech(chosen)
+    setShowSpeech(true)
+    setTimeout(() => setShowSpeech(false), 5500)
+    if (onTipClick) onTipClick(chosen)
+  }
+
+  return (
+    <div className="relative inline-flex items-center">
+      {/* Speech popover when poked */}
+      {showSpeech && (
+        <div className="absolute right-0 bottom-full mb-2 w-64 p-2.5 bg-neutral-900 border-2 border-amber-400/80 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.9)] z-50 animate-aguila-bubble">
+          <div className="flex items-center gap-1 mb-1 pb-0.5 border-b border-neutral-800 text-[10px] font-mono text-amber-400 font-bold">
+            <span>🦅 AGUI STUDY TIP</span>
+          </div>
+          <p className="text-xs text-neutral-200 font-sans leading-snug">
+            {speech}
+          </p>
+        </div>
+      )}
+
+      {/* Mini Companion Perch Button */}
+      <button
+        type="button"
+        onClick={handlePoke}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 hover:border-amber-400/50 transition-all shadow-sm group"
+        title="Agui is studying with you. Click for a quick study tip!"
+      >
+        <div className="relative w-6 h-6 flex-shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={isTyping ? '/mascot-studying.png' : '/mascot-idle.png'}
+            alt="Agui companion"
+            className={`w-6 h-6 object-contain select-none transition-transform ${
+              isTyping ? 'animate-aguila-studying' : 'animate-aguila-alive'
+            } group-hover:scale-110`}
+            style={{ imageRendering: 'pixelated' }}
+          />
+          {isTyping && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          )}
+        </div>
+
+        <div className="text-left hidden sm:block">
+          <p className="text-[10px] font-mono font-bold text-amber-400 leading-tight">
+            AGUI {isTyping ? 'ANALYZING' : 'READY'}
+          </p>
+          <p className="text-[9px] text-neutral-500 font-mono leading-tight">
+            {messageCount} turn{messageCount !== 1 ? 's' : ''} • tap tip
+          </p>
+        </div>
+      </button>
     </div>
   )
 }

@@ -14,7 +14,7 @@ import { generateQuiz } from './actions/quiz'
 import { checkEulaAccepted } from './actions/tasks'
 import QuizMode from '@/components/QuizMode'
 import PomodoroTimer from '@/components/PomodoroTimer'
-import AguiMascot from '@/components/AguiMascot'
+import AguiMascot, { AguiInChatCompanion } from '@/components/AguiMascot'
 import FlashcardModal from '@/components/FlashcardModal'
 import { Icon } from '@/components/Icons'
 import ReactMarkdown from 'react-markdown'
@@ -460,6 +460,7 @@ export default function Home() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [isInputFocused, setIsInputFocused] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const cancelRef = useRef(false)
   const messagesEndRef = useRef(null)
@@ -1248,7 +1249,15 @@ export default function Home() {
               )}
             </div>
 
-            {/* 2. Daily Quota Pill */}
+            {/* 2. In-Chat Living Agui Companion (Tarsi companion for live study) */}
+            {currentSession && mode === 'chat' && (
+              <AguiInChatCompanion
+                isTyping={isTyping}
+                messageCount={messages.length}
+              />
+            )}
+
+            {/* 3. Daily Quota Pill */}
             <button
               onClick={() => setShowQuotaModal(true)}
               className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 text-xs font-mono text-neutral-300 hover:text-white transition-all shadow-sm"
@@ -1359,6 +1368,8 @@ export default function Home() {
                     showBubble={true}
                     guidanceText={hoverGuidance?.text}
                     guidanceBadge={hoverGuidance?.badge}
+                    isTyping={isTyping}
+                    isInputFocused={isInputFocused}
                     onQuickPrompt={(prompt) => {
                       setInput(prompt)
                       inputRef.current?.focus()
@@ -1862,6 +1873,8 @@ export default function Home() {
                   ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
