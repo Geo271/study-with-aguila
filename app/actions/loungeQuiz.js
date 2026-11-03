@@ -90,17 +90,37 @@ CRITICAL RULES:
         : `TOPIC: ${topic}\n\nNo document provided. Generate ${batchCount} comprehensive questions based on your academic knowledge of this topic.`
 
       let rawText = ''
-      try {
-        const completion = await openai.chat.completions.create({
-          model: 'meta-llama/llama-3.1-8b-instruct',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent },
-          ],
-          max_tokens: 3500,
-        })
-        rawText = completion.choices[0].message.content?.trim() || ''
-      } catch (err) { continue }
+      const openRouterModel = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'
+      
+      if (process.env.OPENROUTER_API_KEY) {
+        try {
+          const completion = await openai.chat.completions.create({
+            model: openRouterModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userContent },
+            ],
+            max_tokens: 3500,
+            temperature: 0.3,
+          })
+          rawText = completion.choices[0]?.message?.content?.trim() || ''
+        } catch (err) {
+          console.warn('OpenRouter lounge quiz error, attempting Gemini:', err.message)
+        }
+      }
+
+      if (!rawText && process.env.GEMINI_API_KEY) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: 'gemini-2.0-flash',
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+          const res = await model.generateContent(`${systemPrompt}\n\n${userContent}`)
+          rawText = res.response.text()?.trim() || ''
+        } catch (geminiErr) {
+          console.error('Gemini lounge quiz error:', geminiErr)
+        }
+      }
 
       try {
         const clean = rawText.replace(/```json|```/g, '').trim()
