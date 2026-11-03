@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Icon } from '@/components/Icons'
 
 const GUIDANCE_STEPS = [
   {
@@ -76,22 +77,22 @@ const SIZE_MAP = {
 }
 
 const RETRO_SPARKS = [
-  '+15 EXP ⚡',
-  'FOCUS +1 🎯',
-  'STREAK x3 🔥',
-  'CRITICAL RECALL 🧠',
-  'LEVEL UP! 🌟',
-  'AURA 100% 🦅',
-  'BIG BRAIN 💡',
+  '+15 EXP',
+  'FOCUS +1',
+  'STREAK x3',
+  'CRITICAL RECALL',
+  'LEVEL UP!',
+  'AURA 100%',
+  'MASTERY +1',
 ]
 
 const ACCESSORIES = [
-  { id: 'none', label: 'Natural', icon: '🪶' },
-  { id: 'glasses', label: 'Scholar', icon: '👓' },
-  { id: 'cap', label: 'Graduate', icon: '🎓' },
-  { id: 'headphones', label: 'Lo-Fi', icon: '🎧' },
-  { id: 'crown', label: 'Honor', icon: '👑' },
-  { id: 'headband', label: 'Focus', icon: '🥋' },
+  { id: 'none', label: 'Natural', iconType: 'feather' },
+  { id: 'glasses', label: 'Scholar', iconType: 'glasses' },
+  { id: 'cap', label: 'Graduate', iconType: 'cap' },
+  { id: 'headphones', label: 'Lo-Fi', iconType: 'headphones' },
+  { id: 'crown', label: 'Honor', iconType: 'crown' },
+  { id: 'headband', label: 'Focus', iconType: 'bolt' },
 ]
 
 // ── Native 8-Bit Web Audio Synthesizer (Zero External Dependencies) ─────────
@@ -372,7 +373,7 @@ export default function AguiMascot({
       // Spawn floating hearts
       const heartId = Date.now() + Math.random()
       const tx = Math.floor(Math.random() * 28) - 14
-      setHearts(prev => [...prev.slice(-3), { id: heartId, text: '❤️', tx: `${tx}px` }])
+      setHearts(prev => [...prev.slice(-3), { id: heartId, tx: `${tx}px` }])
       setTimeout(() => {
         setHearts(prev => prev.filter(h => h.id !== heartId))
       }, 900)
@@ -452,7 +453,7 @@ export default function AguiMascot({
                   className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-[10px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700 flex items-center gap-1"
                   title="Cycle retro RPG outfit (Glasses, Cap, Headphones, Crown, Headband)"
                 >
-                  <span>{ACCESSORIES.find(a => a.id === accessory)?.icon || '🪶'}</span>
+                  {Icon[ACCESSORIES.find(a => a.id === accessory)?.iconType || 'feather']?.('w-3 h-3 text-amber-400')}
                   <span className="hidden sm:inline text-[9px] uppercase">Outfit</span>
                 </button>
 
@@ -462,11 +463,12 @@ export default function AguiMascot({
                   className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-[10px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700"
                   title={soundEnabled ? '8-Bit audio enabled (click to mute)' : 'Muted (click to enable 8-bit sounds)'}
                 >
-                  {soundEnabled ? '🔊' : '🔇'}
+                  {soundEnabled ? Icon.volume('w-3 h-3 text-amber-400') : Icon.volumeX('w-3 h-3 text-neutral-400')}
                 </button>
 
-                <span className="text-[9px] text-neutral-500 font-mono ml-0.5">
-                  LVL 5 🦅
+                <span className="text-[9px] text-neutral-500 font-mono ml-0.5 flex items-center gap-1">
+                  <span>LVL 5</span>
+                  {Icon.eagle('w-2.5 h-2.5 text-amber-400/80')}
                 </span>
               </div>
             </div>
@@ -510,10 +512,12 @@ export default function AguiMascot({
         {hearts.map(h => (
           <span
             key={h.id}
-            className="absolute text-base font-bold text-rose-400 animate-aguila-heart drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+            className="absolute animate-aguila-heart drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
             style={{ '--h-tx': h.tx }}
           >
-            {h.text}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-rose-500">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
           </span>
         ))}
       </div>
@@ -734,9 +738,7 @@ export default function AguiMascot({
           {/* Thinking / Synthesizing Gear */}
           {isThinkingMood && (
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-              <span className="text-sm animate-aguila-gear inline-block drop-shadow-[0_2px_6px_rgba(251,191,36,0.8)]">
-                ⚙️
-              </span>
+              {Icon.gear('w-4 h-4 text-amber-400 animate-aguila-gear drop-shadow-[0_2px_6px_rgba(251,191,36,0.8)]')}
             </div>
           )}
 
@@ -751,8 +753,9 @@ export default function AguiMascot({
 
           {/* Celebrating Trophy Badge */}
           {isCelebratingMood && (
-            <span className="absolute -top-3 -right-3 px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 font-mono text-[10px] font-bold border border-emerald-400 shadow-[2px_2px_0px_rgba(0,0,0,0.8)] animate-bounce">
-              A+ 🏆
+            <span className="absolute -top-3 -right-3 px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 font-mono text-[10px] font-bold border border-emerald-400 shadow-[2px_2px_0px_rgba(0,0,0,0.8)] animate-bounce flex items-center gap-1">
+              <span>A+</span>
+              {Icon.trophy('w-3 h-3 text-neutral-950')}
             </span>
           )}
         </div>
@@ -815,8 +818,9 @@ export function AguiInChatCompanion({
       {/* Speech popover when poked */}
       {showSpeech && (
         <div className="absolute right-0 bottom-full mb-2 w-64 p-2.5 bg-neutral-900 border-2 border-amber-400/80 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.9)] z-50 animate-aguila-bubble">
-          <div className="flex items-center gap-1 mb-1 pb-0.5 border-b border-neutral-800 text-[10px] font-mono text-amber-400 font-bold">
-            <span>🦅 AGUI STUDY TIP</span>
+          <div className="flex items-center gap-1.5 mb-1 pb-0.5 border-b border-neutral-800 text-[10px] font-mono text-amber-400 font-bold">
+            {Icon.eagle('w-3 h-3 text-amber-400')}
+            <span>AGUI STUDY TIP</span>
           </div>
           <p className="text-xs text-neutral-200 font-sans leading-snug">
             {speech}

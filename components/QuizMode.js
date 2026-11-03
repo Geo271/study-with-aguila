@@ -59,7 +59,6 @@ export default function QuizMode({ questions, quizId, userId, onFinish, onRetake
   if (finished) {
     const score = answers.filter(a => a.isCorrect).length
     const pct = Math.round((score / total) * 100)
-    const emoji = pct >= 80 ? '🏆' : pct >= 60 ? '👍' : '📚'
     const msg = pct >= 80 ? 'Excellent work!' : pct >= 60 ? 'Good effort!' : 'Keep reviewing.'
     const wrongAnswers = answers.filter(a => !a.isCorrect)
 
@@ -67,7 +66,7 @@ export default function QuizMode({ questions, quizId, userId, onFinish, onRetake
       <div className="flex flex-col h-full overflow-y-auto p-5 sm:p-7">
         {/* Score card */}
         <div className="text-center mb-6">
-          <div className="text-5xl mb-3">{emoji}</div>
+          <div className="mb-3 flex justify-center">{pct >= 80 ? Icon.trophy("w-12 h-12 text-amber-400") : pct >= 60 ? Icon.checkCircle("w-12 h-12 text-emerald-400") : Icon.cards("w-12 h-12 text-indigo-400")}</div>
           <h2 className="text-xl font-bold text-white mb-1">Quiz complete</h2>
           <p className="text-neutral-500 text-sm">{msg}</p>
 

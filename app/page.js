@@ -182,7 +182,7 @@ const AVAILABLE_MODELS = [
     name: 'DeepSeek V3',
     shortName: 'DeepSeek V3',
     tag: 'Academic Reasoning',
-    icon: '⚡',
+    iconType: 'chip',
     badge: 'DEFAULT',
     badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
     description: 'Premier choice for STEM derivations, medical concepts, legal IRAC, and rigorous proofs.',
@@ -194,7 +194,7 @@ const AVAILABLE_MODELS = [
     name: 'Gemini 2.0 Flash',
     shortName: 'Gemini Flash',
     tag: '1M Context & Fast',
-    icon: '🚀',
+    iconType: 'spark',
     badge: 'FASTEST',
     badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
     description: 'Lightning sub-second responses with massive 1,000,000 token context for full coursebooks.',
@@ -206,7 +206,7 @@ const AVAILABLE_MODELS = [
     name: 'Llama 3.3 70B',
     shortName: 'Llama 3.3',
     tag: 'General Instruction',
-    icon: '🧠',
+    iconType: 'brain',
     badge: 'OPEN SOURCE',
     badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
     description: 'High-craft prose, essay critique, literature analysis, and balanced conceptual summaries.',
@@ -388,7 +388,7 @@ function ChatMessage({ msg, userEmail, defaultModel, onExplainSimpler = null }) 
                   className="opacity-60 group-hover:opacity-100 hover:text-emerald-300 text-neutral-400 px-1.5 py-0.5 rounded hover:bg-neutral-800 transition-all text-[10px] font-mono flex items-center gap-1 border border-transparent hover:border-emerald-500/30"
                   title="Feynman Technique: Explain like I'm 5 with an everyday analogy"
                 >
-                  <span>👶</span>
+                  {Icon.lightbulb('w-3 h-3 text-emerald-400')}
                   <span className="hidden sm:inline">ELI5</span>
                 </button>
               )}
@@ -748,7 +748,7 @@ export default function Home() {
     if (dailyUsage.date === today && dailyUsage.count >= 50) {
       setMessages(prev => [...prev, {
         role: 'ai',
-        content: `⚠️ **Daily Free Query Quota Reached (50/50)**\n\nYou've used all 50 academic queries for today. Your daily free quota reloads tonight at **00:00 UTC**.\n\nWhile you wait, you can still:\n- 🎯 Generate and practice **unlimited quizzes** from your uploaded notes\n- 🎧 Enter the **Student Lounge** to study with friends in real-time\n- ⏱ Run focused Pomodoro study blocks`,
+        content: `[SYSTEM] **Daily Free Query Quota Reached (50/50)**\n\nYou've used all 50 academic queries for today. Your daily free quota reloads tonight at **00:00 UTC**.\n\nWhile you wait, you can still:\n- Generate and practice **unlimited quizzes** from your uploaded notes\n- Enter the **Student Lounge** to study with friends in real-time\n- Run focused Pomodoro study blocks`,
         modelUsed: selectedModel,
         created_at: new Date().toISOString(),
       }])
@@ -1178,7 +1178,7 @@ export default function Home() {
                 className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 text-xs text-neutral-300 hover:text-white transition-all shadow-sm"
                 title="Select Active AI Study Engine"
               >
-                <span className="text-xs">{getModelInfo(selectedModel).icon}</span>
+                <span>{Icon[getModelInfo(selectedModel).iconType]?.('w-3.5 h-3.5 text-amber-400')}</span>
                 <span className="font-mono text-[11px] font-semibold hidden md:inline">{getModelInfo(selectedModel).shortName}</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3 h-3 text-neutral-500 transition-transform ${showModelMenu ? 'rotate-180' : ''}`}>
                   <polyline points="6 9 12 15 18 9" />
@@ -1218,7 +1218,7 @@ export default function Home() {
                                 : 'bg-neutral-900/50 border-transparent hover:bg-neutral-800/60 text-neutral-300 hover:text-white'
                             }`}
                           >
-                            <span className="text-sm flex-shrink-0 mt-0.5">{m.icon}</span>
+                            <span className="flex-shrink-0 mt-0.5">{Icon[m.iconType]?.('w-4 h-4 text-amber-400')}</span>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-xs font-semibold">{m.name}</span>
@@ -1487,7 +1487,7 @@ export default function Home() {
                         className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm">⚡</span>
+                          {Icon.bolt('w-4 h-4 text-amber-400')}
                           <span className="text-[9px] font-mono px-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">HOOK 1</span>
                         </div>
                         <p className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">Exam Cheatsheet</p>
@@ -1500,7 +1500,7 @@ export default function Home() {
                         className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-emerald-500/50 rounded-xl text-left transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm">👶</span>
+                          {Icon.lightbulb('w-4 h-4 text-emerald-400')}
                           <span className="text-[9px] font-mono px-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HOOK 2</span>
                         </div>
                         <p className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors">Feynman (ELI5)</p>
@@ -1519,7 +1519,7 @@ export default function Home() {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm">🦉</span>
+                          {Icon.owl('w-4 h-4 text-indigo-400')}
                           <span className={`text-[9px] font-mono px-1 rounded border ${
                             studyMode === 'socratic' ? 'bg-indigo-500 text-white border-indigo-400' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
                           }`}>
@@ -1538,7 +1538,7 @@ export default function Home() {
                         className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm">🗂</span>
+                          {Icon.cards('w-4 h-4 text-amber-400')}
                           <span className="text-[9px] font-mono px-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">HOOK 4</span>
                         </div>
                         <p className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">Flashcard Drill</p>
@@ -1551,7 +1551,7 @@ export default function Home() {
                         className="col-span-2 p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-purple-500/50 rounded-xl text-left transition-all group flex items-center justify-between"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className="text-base">🎯</span>
+                          {Icon.target('w-4 h-4 text-purple-400')}
                           <div>
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-semibold text-white group-hover:text-purple-300 transition-colors">Exam Readiness &amp; Weak Spots</p>
@@ -1782,14 +1782,14 @@ export default function Home() {
                           setSelectedModel(m.id)
                           try { localStorage.setItem('aguila_selected_model', m.id) } catch (e) {}
                         }}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 ${
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1.5 ${
                           isSelected
                             ? 'bg-neutral-800 text-amber-300 border border-amber-500/40 shadow-xs'
                             : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 border border-transparent'
                         }`}
                         title={`${m.name}: ${m.description}`}
                       >
-                        <span>{m.icon}</span>
+                        {Icon[m.iconType]?.('w-3 h-3 text-amber-400')}
                         <span className="font-semibold">{m.shortName}</span>
                       </button>
                     )
@@ -1801,14 +1801,14 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setStudyMode(m => m === 'socratic' ? 'standard' : 'socratic')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1.5 ${
                       studyMode === 'socratic'
                         ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-xs'
                         : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 border border-transparent'
                     }`}
                     title="Toggle Socratic Mode: Agui guides your problem-solving step by step instead of directly giving answers"
                   >
-                    <span>🦉</span>
+                    {Icon.owl('w-3 h-3 text-indigo-400')}
                     <span>{studyMode === 'socratic' ? 'Socratic ON' : 'Socratic'}</span>
                   </button>
 
@@ -1816,10 +1816,10 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleOpenFlashcards}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono text-neutral-500 hover:text-amber-300 hover:bg-neutral-900 border border-transparent transition-all flex items-center gap-1"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono text-neutral-500 hover:text-amber-300 hover:bg-neutral-900 border border-transparent transition-all flex items-center gap-1.5"
                     title="Open active recall flashcard drill"
                   >
-                    <span>🗂</span>
+                    {Icon.cards('w-3 h-3 text-amber-400')}
                     <span className="hidden sm:inline">Cards</span>
                   </button>
 
@@ -1827,10 +1827,10 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => handleTriggerHook('cram')}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono text-neutral-500 hover:text-amber-300 hover:bg-neutral-900 border border-transparent transition-all flex items-center gap-1"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono text-neutral-500 hover:text-amber-300 hover:bg-neutral-900 border border-transparent transition-all flex items-center gap-1.5"
                     title="Generate exam cram cheatsheet"
                   >
-                    <span>⚡</span>
+                    {Icon.bolt('w-3 h-3 text-amber-400')}
                     <span className="hidden sm:inline">Cram</span>
                   </button>
                 </div>
@@ -1979,7 +1979,10 @@ export default function Home() {
             <div className="space-y-2 mb-5 text-xs">
               <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
                 <span className="text-neutral-400">Active Tier</span>
-                <span className="font-mono text-emerald-400 font-semibold">🎓 Free Student Tier</span>
+                <span className="font-mono text-emerald-400 font-semibold flex items-center gap-1.5">
+                  {Icon.cap('w-3.5 h-3.5')}
+                  <span>Free Student Tier</span>
+                </span>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
                 <span className="text-neutral-400">Tokens Processed Today</span>
@@ -1987,11 +1990,17 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
                 <span className="text-neutral-400">Practice Quiz Generations</span>
-                <span className="font-mono text-emerald-400 font-semibold">Unlimited ⚡</span>
+                <span className="font-mono text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span>Unlimited</span>
+                  {Icon.bolt('w-3.5 h-3.5')}
+                </span>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
                 <span className="text-neutral-400">Student Lounge Access</span>
-                <span className="font-mono text-emerald-400 font-semibold">Unlimited 🎧</span>
+                <span className="font-mono text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span>Unlimited</span>
+                  {Icon.headphones('w-3.5 h-3.5')}
+                </span>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
                 <span className="text-neutral-400">Active AI Engine</span>
