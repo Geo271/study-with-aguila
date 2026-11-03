@@ -173,21 +173,119 @@ const MermaidDiagram = ({ chart }) => {
   )
 }
 
+// ── Available AI Study Engines (Model Selector) ───────────────────────
+const AVAILABLE_MODELS = [
+  {
+    id: 'deepseek/deepseek-chat',
+    name: 'DeepSeek V3',
+    shortName: 'DeepSeek V3',
+    tag: 'Academic Reasoning',
+    icon: '⚡',
+    badge: 'DEFAULT',
+    badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+    description: 'Premier choice for STEM derivations, medical concepts, legal IRAC, and rigorous proofs.',
+    context: '64k Context',
+    speed: 'Deep Thinker',
+  },
+  {
+    id: 'google/gemini-2.0-flash-001',
+    name: 'Gemini 2.0 Flash',
+    shortName: 'Gemini Flash',
+    tag: '1M Context & Fast',
+    icon: '🚀',
+    badge: 'FASTEST',
+    badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    description: 'Lightning sub-second responses with massive 1,000,000 token context for full coursebooks.',
+    context: '1M Context',
+    speed: 'Instant',
+  },
+  {
+    id: 'meta-llama/llama-3.3-70b-instruct',
+    name: 'Llama 3.3 70B',
+    shortName: 'Llama 3.3',
+    tag: 'General Instruction',
+    icon: '🧠',
+    badge: 'OPEN SOURCE',
+    badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    description: 'High-craft prose, essay critique, literature analysis, and balanced conceptual summaries.',
+    context: '128k Context',
+    speed: 'Balanced',
+  },
+]
+
+const getModelInfo = (modelId) => {
+  return AVAILABLE_MODELS.find(m => m.id === modelId) || AVAILABLE_MODELS[0]
+}
+
+// ── Retro High-Craft Code Block Component ─────────────────────────────
+function CodeBlock({ language, value }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="my-3 rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden font-mono text-xs shadow-md">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-[11px] text-neutral-400 select-none">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-amber-400/80 inline-block shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
+          <span className="font-mono text-neutral-300 uppercase tracking-wider font-semibold">{language || 'code'}</span>
+        </div>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors"
+          title="Copy code to clipboard"
+        >
+          {copied ? (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-emerald-400">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span className="text-[10px] text-emerald-400 font-semibold font-mono">Copied!</span>
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span className="text-[10px] font-mono">Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-3.5 overflow-x-auto text-neutral-200 leading-relaxed font-mono retro-scroll">
+        <code>{value}</code>
+      </pre>
+    </div>
+  )
+}
+
 const MarkdownRenderer = ({ content }) => (
   <div className="overflow-x-hidden break-words prose prose-invert prose-sm max-w-none">
     <ReactMarkdown
       components={{
-        p: ({ node, ...props }) => <p className="mb-2.5 last:mb-0" {...props}/>,
-        ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2.5 space-y-1" {...props}/>,
-        ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2.5 space-y-1" {...props}/>,
-        li: ({ node, ...props }) => <li className="text-neutral-300" {...props}/>,
-        strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props}/>,
+        p: ({ node, ...props }) => <p className="mb-2.5 last:mb-0 leading-relaxed text-neutral-200" {...props}/>,
+        ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2.5 space-y-1 text-neutral-300" {...props}/>,
+        ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2.5 space-y-1 text-neutral-300" {...props}/>,
+        li: ({ node, ...props }) => <li className="text-neutral-300 leading-relaxed" {...props}/>,
+        strong: ({ node, ...props }) => <strong className="font-semibold text-white tracking-wide" {...props}/>,
+        blockquote: ({ node, ...props }) => (
+          <blockquote className="my-2.5 border-l-2 border-amber-500/80 bg-amber-500/5 px-3 py-2 rounded-r text-xs text-neutral-300 italic" {...props}/>
+        ),
         code: ({ inline, className, children, ...props }) => {
           const match = /language-(\w+)/.exec(className || '')
+          const rawCode = String(children).replace(/\n$/, '')
           if (!inline && match && match[1] === 'mermaid') {
-            return <MermaidDiagram chart={String(children).replace(/\n$/, '')} />
+            return <MermaidDiagram chart={rawCode} />
           }
-          return <code className={`${className || ''} bg-neutral-700 rounded px-1.5 py-0.5 text-xs text-indigo-300`} {...props}>{children}</code>
+          if (!inline) {
+            return <CodeBlock language={match ? match[1] : ''} value={rawCode} />
+          }
+          return <code className={`${className || ''} bg-neutral-800 text-amber-300 font-mono rounded px-1.5 py-0.5 text-xs border border-neutral-700/60`} {...props}>{children}</code>
         },
       }}
     >
@@ -213,6 +311,111 @@ const TypewriterMarkdown = ({ content }) => {
   return <MarkdownRenderer content={displayed} />
 }
 
+// ── Retro Academic Message Bubble ─────────────────────────────────────
+function ChatMessage({ msg, userEmail, defaultModel }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(msg.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const modelInfo = getModelInfo(msg.modelUsed || defaultModel)
+  const timeStr = msg.created_at
+    ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : ''
+
+  if (msg.role === 'user') {
+    return (
+      <div className="flex items-end justify-end gap-2 animate-chat-in group min-w-0">
+        <div className="flex flex-col items-end max-w-[85%] sm:max-w-[78%]">
+          <div className="bg-neutral-800 border border-neutral-700/80 text-neutral-100 rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed shadow-sm">
+            {msg.content.split('\n').map((line, idx) => (
+              <span key={idx}>
+                {line}
+                {idx < msg.content.split('\n').length - 1 && <br />}
+              </span>
+            ))}
+          </div>
+          {timeStr && (
+            <span className="text-[10px] text-neutral-500 font-mono tabular-nums mt-1 px-1">
+              {timeStr}
+            </span>
+          )}
+        </div>
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0 self-end text-xs font-bold text-neutral-300">
+          {userEmail ? userEmail[0].toUpperCase() : 'U'}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-2.5 animate-chat-in min-w-0 group">
+      {/* Retro Pixel Aguila Avatar */}
+      <div className="w-8 h-8 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center flex-shrink-0 mt-1 shadow-sm overflow-hidden">
+        <img
+          src="/logo.png"
+          alt="Aguila"
+          className="w-5 h-5 object-contain"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
+
+      <div className="flex-1 max-w-[92%] sm:max-w-[85%] min-w-0">
+        <div className="bg-neutral-900/90 border border-neutral-800/90 hover:border-neutral-700/80 rounded-2xl rounded-tl-sm px-4 py-3.5 shadow-sm transition-all text-neutral-100">
+          {/* Top meta bar */}
+          <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-neutral-800/80">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-bold text-white tracking-tight">Aguila</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700/70 text-neutral-300 flex items-center gap-1">
+                <span>{modelInfo.icon}</span>
+                <span>{modelInfo.shortName}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {timeStr && (
+                <span className="text-[10px] text-neutral-500 font-mono tabular-nums">
+                  {timeStr}
+                </span>
+              )}
+              <button
+                onClick={handleCopy}
+                className="opacity-60 group-hover:opacity-100 hover:text-white text-neutral-400 p-1 rounded hover:bg-neutral-800 transition-all text-[11px] flex items-center gap-1"
+                title="Copy markdown text"
+              >
+                {copied ? (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-emerald-400">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span className="text-[10px] text-emerald-400 font-mono font-semibold">Copied</span>
+                  </>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="text-sm leading-relaxed">
+            {msg.isNew ? (
+              <TypewriterMarkdown content={msg.content} />
+            ) : (
+              <MarkdownRenderer content={msg.content} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────
 export default function Home() {
   const router = useRouter()
@@ -222,6 +425,12 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true)
   const [displayName, setDisplayName] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
+
+  // Model & Quota Tracking
+  const [selectedModel, setSelectedModel] = useState('deepseek/deepseek-chat')
+  const [showModelMenu, setShowModelMenu] = useState(false)
+  const [dailyUsage, setDailyUsage] = useState({ count: 0, tokens: 0, date: '' })
+  const [showQuotaModal, setShowQuotaModal] = useState(false)
 
   // Sessions
   const [sessions, setSessions] = useState([])
@@ -299,6 +508,25 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [router])
 
+  // ── Restore saved AI Engine preference & today's query usage ──────
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    try {
+      const storedUsage = localStorage.getItem(`aguila_usage_${today}`)
+      if (storedUsage) {
+        setDailyUsage(JSON.parse(storedUsage))
+      } else {
+        setDailyUsage({ count: 0, tokens: 0, date: today })
+      }
+      const savedModel = localStorage.getItem('aguila_selected_model')
+      if (savedModel && AVAILABLE_MODELS.some(m => m.id === savedModel)) {
+        setSelectedModel(savedModel)
+      }
+    } catch (e) {
+      console.warn('Storage read warning:', e)
+    }
+  }, [])
+
   // ── Scroll FAB ────────────────────────────────────────────────────
   useEffect(() => {
     const el = messagesContainerRef.current
@@ -337,8 +565,16 @@ export default function Home() {
     const result = await getSessionMessages(session.id)
     setMessages(
       result.success && result.messages.length
-        ? result.messages.map(m => ({ role: m.role, content: m.content }))
-        : [{ role: 'ai', content: `Welcome back to **${session.title}**. Ask me anything about your notes.` }]
+        ? result.messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+          }))
+        : [{
+            role: 'ai',
+            content: `Welcome back to **${session.title}**. Ask me anything about your notes.`,
+            created_at: new Date().toISOString(),
+          }]
     )
     setLoadingHistory(false)
     inputRef.current?.focus()
@@ -483,18 +719,29 @@ export default function Home() {
     await refreshSessions()
   }
 
-const handleSend = async (e) => {
+  const handleSend = async (e) => {
     e?.preventDefault()
     const msg = input.trim()
     if (!msg || isTyping) return
 
+    // 🌟 Quota limit enforcement (50 queries / day for free student tier)
+    const today = new Date().toISOString().slice(0, 10)
+    if (dailyUsage.date === today && dailyUsage.count >= 50) {
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: `⚠️ **Daily Free Query Quota Reached (50/50)**\n\nYou've used all 50 academic queries for today. Your daily free quota reloads tonight at **00:00 UTC**.\n\nWhile you wait, you can still:\n- 🎯 Generate and practice **unlimited quizzes** from your uploaded notes\n- 🎧 Enter the **Student Lounge** to study with friends in real-time\n- ⏱ Run focused Pomodoro study blocks`,
+        modelUsed: selectedModel,
+        created_at: new Date().toISOString(),
+      }])
+      return
+    }
+
     cancelRef.current = false
     setInput('')
     
-    // 🌟 NEW: Auto-create a session if they are just chatting generally!
+    // 🌟 Auto-create a session if chatting generally
     let activeSessionId = currentSession?.id
     if (!activeSessionId) {
-      // Create a session named after their first message
       const sessionResult = await createSession(user.id, msg.substring(0, 30) + '...')
       if (sessionResult.success) {
         activeSessionId = sessionResult.session.id
@@ -506,33 +753,67 @@ const handleSend = async (e) => {
       }
     }
 
-    setMessages(prev => [...prev, { role: 'user', content: msg }])
+    const nowIso = new Date().toISOString()
+    setMessages(prev => [...prev, { role: 'user', content: msg, created_at: nowIso }])
     setIsTyping(true)
     setMascotMood('thinking')
 
-    // 🌟 FIX: Use the activeSessionId we just grabbed/created
-    const result = await askDocument(msg, activeSessionId, user.id)
+    // 🌟 Pass selectedModel to backend
+    const result = await askDocument(msg, activeSessionId, user.id, selectedModel)
 
     if (cancelRef.current) { setIsTyping(false); setMascotMood('idle'); return }
     setIsTyping(false)
     setMascotMood('idle')
 
     if (result.success) {
+      // 🌟 Increment daily query & token counter
+      setDailyUsage(prev => {
+        const isSameDay = prev.date === today
+        const updated = {
+          count: (isSameDay ? prev.count : 0) + 1,
+          tokens: (isSameDay ? prev.tokens : 0) + (result.tokensUsed || 450),
+          date: today,
+        }
+        try {
+          localStorage.setItem(`aguila_usage_${today}`, JSON.stringify(updated))
+        } catch (storageErr) {
+          console.warn('Daily usage save error:', storageErr)
+        }
+        return updated
+      })
+
       if (result.updatedTitle) {
         setCurrentSession(s => s ? { ...s, title: result.updatedTitle } : s)
         refreshSessions()
       }
       if (result.quizTrigger) {
-        setMessages(prev => [...prev, { role: 'ai', content: result.answer, isNew: true }])
+        setMessages(prev => [...prev, {
+          role: 'ai',
+          content: result.answer,
+          isNew: true,
+          modelUsed: result.modelUsed || selectedModel,
+          created_at: new Date().toISOString(),
+        }])
         setIsGeneratingQuiz(true)
         const qr = await generateQuiz(uploadedDocs[0], user.id, result.quizTrigger, activeSessionId)
         setIsGeneratingQuiz(false)
         if (qr.success) { setQuizQuestions(qr.questions); setQuizId(qr.quizId); setMode('quiz') }
         return
       }
-      setMessages(prev => [...prev, { role: 'ai', content: result.answer, isNew: true }])
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: result.answer,
+        isNew: true,
+        modelUsed: result.modelUsed || selectedModel,
+        created_at: new Date().toISOString(),
+      }])
     } else {
-      setMessages(prev => [...prev, { role: 'ai', content: 'Something went wrong. Please try again.' }])
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: 'Something went wrong processing your query. Please try again or switch model engines.',
+        modelUsed: selectedModel,
+        created_at: new Date().toISOString(),
+      }])
     }
   }
 
@@ -806,7 +1087,104 @@ const handleSend = async (e) => {
           </div>
 
           {/* Header actions */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0 relative">
+            {/* 1. Model Selector Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowModelMenu(v => !v)}
+                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 text-xs text-neutral-300 hover:text-white transition-all shadow-sm"
+                title="Select Active AI Study Engine"
+              >
+                <span className="text-xs">{getModelInfo(selectedModel).icon}</span>
+                <span className="font-mono text-[11px] font-semibold hidden md:inline">{getModelInfo(selectedModel).shortName}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3 h-3 text-neutral-500 transition-transform ${showModelMenu ? 'rotate-180' : ''}`}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showModelMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowModelMenu(false)} 
+                  />
+                  <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-neutral-900 border border-neutral-800 rounded-2xl p-2 shadow-2xl z-50 animate-chat-in">
+                    <div className="px-2.5 py-2 mb-1 border-b border-neutral-800 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-neutral-200 uppercase tracking-wider font-mono">
+                        AI Study Engine
+                      </span>
+                      <span className="text-[9px] text-amber-400 font-mono">
+                        3 Modern Engines
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {AVAILABLE_MODELS.map(m => {
+                        const isSelected = selectedModel === m.id
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => {
+                              setSelectedModel(m.id)
+                              try { localStorage.setItem('aguila_selected_model', m.id) } catch (e) {}
+                              setShowModelMenu(false)
+                            }}
+                            className={`w-full text-left p-2.5 rounded-xl transition-all border flex items-start gap-2.5 ${
+                              isSelected
+                                ? 'bg-neutral-800/90 border-amber-500/50 text-white shadow-sm'
+                                : 'bg-neutral-900/50 border-transparent hover:bg-neutral-800/60 text-neutral-300 hover:text-white'
+                            }`}
+                          >
+                            <span className="text-sm flex-shrink-0 mt-0.5">{m.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-semibold">{m.name}</span>
+                                <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${m.badgeColor}`}>
+                                  {m.badge}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-neutral-400 leading-snug mt-0.5 line-clamp-2">
+                                {m.description}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-neutral-500">
+                                <span>{m.context}</span>
+                                <span>·</span>
+                                <span className="text-neutral-400">{m.speed}</span>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 text-amber-400 flex-shrink-0 mt-1">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 2. Daily Quota Pill */}
+            <button
+              onClick={() => setShowQuotaModal(true)}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 text-xs font-mono text-neutral-300 hover:text-white transition-all shadow-sm"
+              title="Click to view daily query quota and resource limits"
+            >
+              <span className={`w-2 h-2 rounded-full ${
+                dailyUsage.count >= 45 
+                  ? 'bg-red-400 animate-pulse' 
+                  : dailyUsage.count >= 30 
+                    ? 'bg-amber-400' 
+                    : 'bg-emerald-400'
+              }`} />
+              <span className="tabular-nums font-mono text-[11px]">
+                {Math.max(0, 50 - dailyUsage.count)} left
+              </span>
+            </button>
+
+            {/* 3. Quiz / Chat Mode buttons */}
             {currentSession && mode === 'chat' && (
               <button
                 onClick={() => setMode('quiz')}
@@ -1033,45 +1411,36 @@ const handleSend = async (e) => {
 
               {/* ── Messages ────────────────────────────────────────── */}
               {currentSession && !loadingHistory && messages.map((msg, i) => (
-                <div
+                <ChatMessage
                   key={i}
-                  /* 🌟 Added animate-fade-in-up class for smooth rendering! */
-                  className={`flex items-end gap-2 animate-fade-in-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'} min-w-0`}
-                >
-                  {msg.role === 'ai' && (
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 self-end">
-                      <EagleLogo className="w-4 h-4"/>
-                    </div>
-                  )}
-                  <div className={`max-w-[85%] sm:max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed break-words min-w-0 ${
-                    msg.role === 'user'
-                      ? 'bg-indigo-600 text-white rounded-br-sm'
-                      : 'bg-neutral-900 text-neutral-100 rounded-bl-sm border border-neutral-800 shadow-sm'
-                  }`}>
-                    {msg.role === 'user' ? (
-                      msg.content.split('\n').map((l, j) => <span key={j}>{l}<br/></span>)
-                    ) : (
-                      /* 🌟 If it's a new message, type it out. Otherwise, render it instantly! */
-                      msg.isNew ? (
-                        <TypewriterMarkdown content={msg.content} />
-                      ) : (
-                        <MarkdownRenderer content={msg.content} />
-                      )
-                    )}
-                  </div>
-                </div>
+                  msg={msg}
+                  userEmail={user?.email}
+                  defaultModel={selectedModel}
+                />
               ))}
 
-              {/* Typing indicator */}
+              {/* Retro 16-Bit Typing indicator */}
               {isTyping && (
-                <div className="flex items-end gap-2">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
-                    <EagleLogo className="w-4 h-4"/>
+                <div className="flex items-start gap-2.5 animate-chat-in">
+                  <div className="w-8 h-8 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center flex-shrink-0 mt-1 shadow-sm overflow-hidden">
+                    <img
+                      src="/mascot-studying.png"
+                      alt="Aguila thinking"
+                      className="w-5 h-5 object-contain"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
                   </div>
-                  <div className="bg-neutral-800 rounded-2xl rounded-bl-sm px-4 py-3 border border-neutral-700/70 flex gap-1.5 items-center">
-                    {[0, 150, 300].map(d => (
-                      <div key={d} className="w-2 h-2 bg-neutral-500 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }}/>
-                    ))}
+                  <div className="bg-neutral-900/95 border border-neutral-800/90 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm text-neutral-300">
+                    <div className="flex items-center gap-2 text-xs font-mono">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
+                      <span className="text-amber-400 font-bold tracking-wider uppercase text-[10px]">
+                        [ AGUI IS ANALYZING ]
+                      </span>
+                      <span className="text-neutral-500 text-[10px] hidden sm:inline">
+                        via {getModelInfo(selectedModel).name}
+                      </span>
+                      <span className="animate-cursor-blink text-amber-400 font-mono font-bold">█</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1210,6 +1579,46 @@ const handleSend = async (e) => {
                 </button>
               )}
 
+              {/* Quick AI Engine Selector & Quota Bar */}
+              <div className="flex items-center justify-between px-1.5 py-0.5 text-xs select-none">
+                <div className="flex items-center gap-1 overflow-x-auto py-0.5 retro-scroll">
+                  <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider mr-0.5">Engine:</span>
+                  {AVAILABLE_MODELS.map(m => {
+                    const isSelected = selectedModel === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(m.id)
+                          try { localStorage.setItem('aguila_selected_model', m.id) } catch (e) {}
+                        }}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 ${
+                          isSelected
+                            ? 'bg-neutral-800 text-amber-300 border border-amber-500/40 shadow-xs'
+                            : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 border border-transparent'
+                        }`}
+                        title={`${m.name}: ${m.description}`}
+                      >
+                        <span>{m.icon}</span>
+                        <span className="font-semibold">{m.shortName}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQuotaModal(true)}
+                  className="text-[10px] text-neutral-500 hover:text-amber-300 font-mono tabular-nums flex items-center gap-1 transition-colors flex-shrink-0 ml-2"
+                  title="Click to view daily resource usage"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full inline-block ${
+                    dailyUsage.count >= 45 ? 'bg-red-400' : dailyUsage.count >= 30 ? 'bg-amber-400' : 'bg-emerald-400'
+                  }`} />
+                  <span>{Math.max(0, 50 - dailyUsage.count)}/50 queries</span>
+                </button>
+              </div>
+
               {/* Main input bar */}
               <div className="flex items-end gap-2 bg-neutral-900/95 border border-neutral-800 focus-within:border-neutral-600 rounded-2xl p-2 shadow-lg shadow-black/20 transition-all">
 
@@ -1283,6 +1692,96 @@ const handleSend = async (e) => {
           </div>
         )}
       </div>
+
+      {/* ── Quota & Resource Usage Modal ────────────────── */}
+      {showQuotaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-chat-in">
+          <div className="relative w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 text-neutral-100">
+            {/* Close button */}
+            <button
+              onClick={() => setShowQuotaModal(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-white p-1 rounded-lg hover:bg-neutral-800 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <img src="/logo.png" alt="Aguila" className="w-6 h-6 object-contain" style={{ imageRendering: 'pixelated' }} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white tracking-tight">Student Daily Quota &amp; Limits</h3>
+                <p className="text-xs text-neutral-400">Generous free tier to support all your university coursework</p>
+              </div>
+            </div>
+
+            {/* Progress Bar Card */}
+            <div className="p-4 bg-neutral-950 border border-neutral-800 rounded-xl mb-4">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-neutral-300 font-medium">Daily AI Study Queries</span>
+                <span className="font-mono tabular-nums text-amber-400 font-bold">
+                  {dailyUsage.count} / 50 used
+                </span>
+              </div>
+              <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    dailyUsage.count >= 45 
+                      ? 'bg-red-500' 
+                      : dailyUsage.count >= 30 
+                        ? 'bg-amber-400' 
+                        : 'bg-emerald-400'
+                  }`}
+                  style={{ width: `${Math.min(100, (dailyUsage.count / 50) * 100)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-neutral-500 font-mono mt-2">
+                <span>{Math.max(0, 50 - dailyUsage.count)} queries remaining today</span>
+                <span>Resets at 00:00 UTC</span>
+              </div>
+            </div>
+
+            {/* Feature Breakdown Table */}
+            <div className="space-y-2 mb-5 text-xs">
+              <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
+                <span className="text-neutral-400">Active Tier</span>
+                <span className="font-mono text-emerald-400 font-semibold">🎓 Free Student Tier</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
+                <span className="text-neutral-400">Tokens Processed Today</span>
+                <span className="font-mono tabular-nums text-neutral-200">~{dailyUsage.tokens.toLocaleString()} tokens</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
+                <span className="text-neutral-400">Practice Quiz Generations</span>
+                <span className="font-mono text-emerald-400 font-semibold">Unlimited ⚡</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
+                <span className="text-neutral-400">Student Lounge Access</span>
+                <span className="font-mono text-emerald-400 font-semibold">Unlimited 🎧</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-neutral-800 text-neutral-300">
+                <span className="text-neutral-400">Active AI Engine</span>
+                <span className="font-mono text-amber-300 font-semibold">{getModelInfo(selectedModel).name}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-neutral-400 leading-relaxed mb-4">
+              Need more questions? Your 50 free queries automatically reload every night at midnight.
+              Quizzes, study lounge rooms, and OCR handwritten notes stay 100% free with no limits.
+            </p>
+
+            <button
+              onClick={() => setShowQuotaModal(false)}
+              className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs rounded-xl transition-all"
+            >
+              Back to Study Session
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

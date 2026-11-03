@@ -45,7 +45,7 @@ ${sampleText.slice(0, 1200)}
   if (process.env.OPENROUTER_API_KEY) {
     try {
       const completion = await openai.chat.completions.create({
-        model: 'meta-llama/llama-3.3-70b-instruct',
+        model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 25,
         temperature: 0.3,
@@ -80,7 +80,7 @@ export async function updateSessionTitle(sessionId, newTitle) {
   return { success: !error }
 }
 
-export async function askDocument(question, sessionIdOrDocId, userId) {
+export async function askDocument(question, sessionIdOrDocId, userId, modelChoice = null) {
   try {
     let contextText = ''
     let docIds = []
@@ -186,7 +186,7 @@ export async function askDocument(question, sessionIdOrDocId, userId) {
     }
 
     const systemPrompt = `
-You are Aguila, a friendly and intellectually sharp AI academic tutor.
+You are Aguila, a friendly, encouraging, and academically rigorous study companion with a retro scholar spirit.
 
 ${hasNotes ? `You are currently referencing the student's study material: "${fileName || 'Uploaded Notes'}"
 
@@ -199,7 +199,8 @@ TUTORING INSTRUCTIONS:
 1. Ground your explanation in the student's material above.
 2. If the user refers to "this", "the file", or "the notes", reference "${fileName}".
 3. Bold key academic terminology for rapid recall.
-4. Keep explanations crisp, educational, and easy to memorize.` 
+4. Provide step-by-step clarity for any university course: STEM (with formulas), Medicine (with pathophysiology), Law (with IRAC), or Business.
+5. Keep explanations crisp, educational, and easy to memorize.` 
 : `CRITICAL INSTRUCTION: The student has not uploaded course notes for this session yet. Answer general academic questions thoughtfully, or encourage them to upload lecture notes/PDFs so you can cite their specific curriculum.`}
 
 RESPONSE GUIDELINES:
@@ -208,10 +209,12 @@ RESPONSE GUIDELINES:
 - End your response with a concise "💡 Key Takeaway" or an active recall question to verify comprehension.
 `
 
+    const selectedModel = modelChoice || process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'
+    let modelUsed = selectedModel
     let rawText = ''
 
-    // 1. Primary AI Call: OpenRouter LLaMA 3.3 70B (with capped max_tokens)
-    if (process.env.OPENROUTER_API_KEY) {
+    // 1. Primary AI Call: OpenRouter (with specified or default model)
+    if (process.env.OPENROUTER_API_KEY && selectedModel !== 'gemini-direct') {
       try {
         const messages = [
           { role: 'system', content: systemPrompt },
@@ -220,20 +223,21 @@ RESPONSE GUIDELINES:
         ]
 
         const completion = await openai.chat.completions.create({
-          model: 'meta-llama/llama-3.3-70b-instruct',
+          model: selectedModel,
           messages,
-          max_tokens: 1400,
-          temperature: 0.6,
+          max_tokens: 1500,
+          temperature: 0.5,
         })
         rawText = completion.choices[0]?.message?.content?.trim() || ''
       } catch (openRouterErr) {
-        console.warn('OpenRouter provider warning, switching to Gemini:', openRouterErr.message)
+        console.warn(`OpenRouter (${selectedModel}) warning, switching to Gemini:`, openRouterErr.message)
       }
     }
 
     // 2. High-Availability Fallback: Google Gemini 2.0 Flash (Fast, generous tokens)
     if (!rawText && process.env.GEMINI_API_KEY) {
       try {
+        modelUsed = 'google/gemini-2.0-flash'
         const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
         const conversationPrompt = `${systemPrompt}\n\n` +
           pastMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n') +
@@ -267,7 +271,7 @@ RESPONSE GUIDELINES:
           { session_id: sessionIdOrDocId, user_id: userId, role: 'ai', content: rawText },
         ])
 
-        // 🌟 Auto-rename session context if title is generic
+        // Auto-rename session context if title is generic
         const currentTitle = isSession.title || ''
         const isGenericTitle = currentTitle === 'New Session' || 
           currentTitle.endsWith('...') || 
@@ -287,7 +291,15 @@ RESPONSE GUIDELINES:
       }
     }
 
-    return { success: true, answer: rawText, updatedTitle }
+    const estimatedTokens = Math.ceil((contextText.length + question.length + rawText.length) / 4)
+
+    return { 
+      success: true, 
+      answer: rawText, 
+      updatedTitle,
+      modelUsed,
+      tokensUsed: estimatedTokens
+    }
   } catch (error) {
     console.error('Chat Error:', error)
     return { success: false, error: error.message }
