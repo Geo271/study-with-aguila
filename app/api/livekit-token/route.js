@@ -3,16 +3,13 @@
  * Enforces 20-person room limit using LiveKit RoomServiceClient.
  */
 
+export const dynamic = 'force-dynamic'
+
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as supabase } from '@/lib/supabase-admin'
 import { NextResponse } from 'next/server'
 
 const MAX_PARTICIPANTS = 20
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-)
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)

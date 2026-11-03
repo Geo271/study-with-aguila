@@ -199,24 +199,24 @@ export default function TakeQuizPage() {
         {/* Fixed Header Area */}
         <div className="dash-header">
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: '#FAFAFA' }}>{accuracy}%</h1>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: '#FAFAFA', fontVariantNumeric: 'tabular-nums' }}>{accuracy}%</h1>
             <p style={{ fontSize: '1rem', color: '#A3A3A3', margin: 0 }}>You scored {score} out of {questions.length}</p>
           </div>
 
           <div className="stats-grid">
             <div className="stat-box" style={{ background: '#022c22', borderColor: '#065f46', color: '#10b981' }}>
               <Icons.Check />
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem' }}>{correctCount}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem', fontVariantNumeric: 'tabular-nums' }}>{correctCount}</div>
               <div style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.8, textTransform: 'uppercase' }}>Correct</div>
             </div>
             <div className="stat-box" style={{ background: '#450a0a', borderColor: '#7f1d1d', color: '#ef4444' }}>
               <Icons.X />
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem' }}>{incorrectCount}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem', fontVariantNumeric: 'tabular-nums' }}>{incorrectCount}</div>
               <div style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.8, textTransform: 'uppercase' }}>Incorrect</div>
             </div>
             <div className="stat-box" style={{ background: '#171717', borderColor: '#262626', color: '#A3A3A3' }}>
               <Icons.Dash />
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem' }}>{unansweredCount}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.5rem', fontVariantNumeric: 'tabular-nums' }}>{unansweredCount}</div>
               <div style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.8, textTransform: 'uppercase' }}>Skipped</div>
             </div>
           </div>

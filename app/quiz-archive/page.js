@@ -20,6 +20,16 @@ export default function QuizArchive() {
   const router = useRouter()
   const [expandedQuizId, setExpandedQuizId] = useState(null)
 
+  const fetchQuizzes = async (userId) => {
+    // 🌟 Uses the secure server action instead of the client!
+    const result = await getUserQuizzes(userId)
+    if (result.success) {
+      setQuizzes(result.quizzes || [])
+    } else {
+      console.error("Failed to load quizzes:", result.error)
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -31,16 +41,6 @@ export default function QuizArchive() {
     load()
   }, [])
 
-  const fetchQuizzes = async (userId) => {
-    // 🌟 Uses the secure server action instead of the client!
-    const result = await getUserQuizzes(userId);
-    if (result.success) {
-      setQuizzes(result.quizzes || []);
-    } else {
-      console.error("Failed to load quizzes:", result.error);
-    }
-  }
-
   const handleOpenQuiz = (quiz) => {
     setActiveQuiz(quiz)
     setActiveQuestions(quiz.questions)
@@ -50,7 +50,7 @@ export default function QuizArchive() {
   const handleDeleteQuiz = async (quizId) => {
     setDeletingId(quizId)
     // 🌟 Uses the secure server action to delete!
-    const result = await deleteUserQuiz(quizId);
+    const result = await deleteUserQuiz(quizId)
     
     if (result.success) {
       setQuizzes(prev => prev.filter(q => q.id !== quizId))

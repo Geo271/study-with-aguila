@@ -169,7 +169,7 @@ export default function PomodoroTimer({ userId, sessionId, onClose }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-neutral-600'}`}/>
-            <span className="text-xs font-semibold text-neutral-300">
+            <span className="text-xs font-semibold text-neutral-300 font-mono tabular-nums">
               {minimized ? `${mins}:${secs}` : isBreak ? 'Break time' : 'Focus session'}
             </span>
             {!minimized && completed > 0 && (
@@ -251,7 +251,7 @@ export default function PomodoroTimer({ userId, sessionId, onClose }) {
                   <circle cx="50" cy="50" r="42" fill="none" stroke="#262626" strokeWidth="8"/>
                   <circle
                     cx="50" cy="50" r="42" fill="none"
-                    stroke={isBreak ? '#0f6e56' : '#4338ca'}
+                    stroke={isBreak ? '#10b981' : '#f59e0b'}
                     strokeWidth="8" strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={strokeOffset}
@@ -259,7 +259,7 @@ export default function PomodoroTimer({ userId, sessionId, onClose }) {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-xl font-mono font-bold text-white tracking-tight">{mins}:{secs}</span>
+                  <span className="text-xl font-mono font-bold text-white tracking-tight tabular-nums">{mins}:{secs}</span>
                   <span className="text-xs text-neutral-500">{isBreak ? 'break' : 'focus'}</span>
                 </div>
               </div>

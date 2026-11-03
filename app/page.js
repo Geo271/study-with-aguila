@@ -778,16 +778,22 @@ const handleSend = async (e) => {
           <div className="flex-1 min-w-0">
             {currentSession ? (
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"/>
-                <span className="text-sm font-medium text-neutral-200 truncate">{currentSession.title}</span>
-                <span className="text-xs text-neutral-700 flex-shrink-0 hidden sm:block">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0 animate-pulse"/>
+                <span className="text-sm font-semibold text-neutral-100 truncate">{currentSession.title}</span>
+                <span className="text-xs text-neutral-400 flex-shrink-0 hidden sm:block font-mono tabular-nums">
                   · {uploadedDocs.length} file{uploadedDocs.length !== 1 ? 's' : ''}
                 </span>
               </div>
             ) : (
-              <span className="text-sm font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                Study with Aguila
-              </span>
+              <div className="flex items-center gap-2">
+                <EagleLogo className="w-5 h-5"/>
+                <span className="text-sm font-semibold tracking-tight text-white">
+                  Study with Aguila
+                </span>
+                <span className="text-[10px] font-mono tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium hidden sm:inline-block">
+                  v1.8
+                </span>
+              </div>
             )}
           </div>
 
@@ -925,35 +931,35 @@ const handleSend = async (e) => {
                     {/* 1. Upload PDF Button */}
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-start gap-3 p-4 bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 rounded-2xl text-left transition-all group"
+                      className="flex items-start gap-3 p-4 bg-neutral-900/90 border border-neutral-800 hover:border-amber-500/40 rounded-2xl text-left transition-all duration-200 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
                     >
-                      <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-500/20 transition-colors">
-                        {Icon.upload('w-4 h-4 text-indigo-400')}
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-500/20 transition-colors">
+                        {Icon.upload('w-4 h-4 text-amber-400')}
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">Upload PDF notes</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">Quiz generated automatically</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-neutral-100 tracking-tight">Upload PDF notes</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">Auto-embeds &amp; creates quiz</p>
                       </div>
                     </button>
 
                     {/* 2. Scan Handwritten Notes Button */}
                     <button
                       onClick={() => imageInputRef.current?.click()}
-                      className="flex items-start gap-3 p-4 bg-neutral-900 border border-neutral-800 hover:border-teal-500/50 rounded-2xl text-left transition-all group"
+                      className="flex items-start gap-3 p-4 bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/40 rounded-2xl text-left transition-all duration-200 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
                     >
-                      <div className="w-9 h-9 rounded-xl bg-teal-500/10 flex items-center justify-center flex-shrink-0 group-hover:bg-teal-500/20 transition-colors">
-                        <ScanIcon cls="w-4 h-4 text-teal-400"/>
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors">
+                        <ScanIcon cls="w-4 h-4 text-emerald-400"/>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">Scan handwritten notes</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">OCR reads your handwriting</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-neutral-100 tracking-tight">Scan handwritten notes</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">Gemini Vision OCR transcription</p>
                       </div>
                     </button>
 
                     {/* 3. 🌟 Lounge Banner (Spans 2 columns, sits at the bottom) */}
                     <button
                       onClick={() => router.push('/lounge')}
-                      className="sm:col-span-2 flex items-center justify-between p-4 bg-indigo-500/10 border border-indigo-500/20 hover:border-indigo-500/40 rounded-2xl text-left transition-all group"
+                      className="sm:col-span-2 flex items-center justify-between p-4 bg-neutral-900/90 border border-neutral-800 hover:border-indigo-500/40 rounded-2xl text-left transition-all duration-200 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-500/30 transition-colors">
@@ -972,7 +978,7 @@ const handleSend = async (e) => {
                   {/* Recent sessions */}
                   {sessions.length > 0 && (
                     <div className="w-full max-w-md">
-                      <p className="text-xs text-neutral-700 uppercase tracking-widest font-medium mb-3">Recent sessions</p>
+                      <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold mb-3">Recent sessions</p>
                       <div className="space-y-1.5">
                         {sessions.slice(0, 4).map(s => (
                           <button
@@ -1016,7 +1022,7 @@ const handleSend = async (e) => {
                   <div className={`max-w-[85%] sm:max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed break-words min-w-0 ${
                     msg.role === 'user'
                       ? 'bg-indigo-600 text-white rounded-br-sm'
-                      : 'bg-neutral-800 text-neutral-200 rounded-bl-sm border border-neutral-700/70'
+                      : 'bg-neutral-900 text-neutral-100 rounded-bl-sm border border-neutral-800 shadow-sm'
                   }`}>
                     {msg.role === 'user' ? (
                       msg.content.split('\n').map((l, j) => <span key={j}>{l}<br/></span>)
@@ -1181,7 +1187,7 @@ const handleSend = async (e) => {
               )}
 
               {/* Main input bar */}
-              <div className="flex items-end gap-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-2">
+              <div className="flex items-end gap-2 bg-neutral-900/95 border border-neutral-800 focus-within:border-neutral-600 rounded-2xl p-2 shadow-lg shadow-black/20 transition-all">
 
                 {/* Attach button */}
                 <div className="relative flex-shrink-0">

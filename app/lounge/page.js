@@ -59,7 +59,7 @@ export default function LoungeLobby() {
           <EagleLogo />
           <span className="font-bold text-sm">Study with Aguila</span>
         </div>
-        <Link href="/" className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors">
+        <Link href="/" className="text-xs text-neutral-300 hover:text-white bg-neutral-800/90 hover:bg-neutral-700 px-3 py-1.5 rounded-lg border border-neutral-700 transition-all font-medium">
           ← Back to study
         </Link>
       </header>
@@ -70,14 +70,17 @@ export default function LoungeLobby() {
 
           {/* Title */}
           <div className="text-center space-y-2">
-            {/* Room icon */}
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-indigo-400">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
-              </svg>
+            {/* Mascot Emblem */}
+            <div className="w-16 h-16 mx-auto flex items-center justify-center mb-2">
+              <img
+                src="/logo.png"
+                alt="Aguila Lounge"
+                className="w-14 h-14 object-contain rounded-2xl shadow-md border border-neutral-800"
+                style={{ imageRendering: 'pixelated' }}
+              />
             </div>
-            <h1 className="text-2xl font-bold text-white">Student Lounge</h1>
-            <p className="text-sm text-neutral-500">A virtual study room with voice chat and live avatars.</p>
+            <h1 className="text-xl font-bold tracking-tight text-white">Student Lounge</h1>
+            <p className="text-xs text-neutral-400">A virtual study room with live voice chat and synchronized avatars.</p>
           </div>
 
           {/* Tab toggle */}
@@ -114,7 +117,7 @@ export default function LoungeLobby() {
                     required
                     maxLength={6}
                     autoFocus
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-lg font-mono tracking-[0.3em] text-white text-center placeholder-neutral-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-lg font-mono tracking-[0.3em] tabular-nums text-white text-center placeholder-neutral-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
                   />
                   <p className="text-xs text-neutral-600 mt-1.5 text-center">
                     Ask the room host for their invite code.

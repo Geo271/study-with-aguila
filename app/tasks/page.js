@@ -8,9 +8,9 @@ import { getTasks, createTask, updateTask, deleteTask } from '@/app/actions/task
 import { Icon } from '@/components/Icons'
 
 const PRIORITY_COLORS = {
-  high: { bg: 'bg-red-500/10', border: 'border-red-500/25', text: 'text-red-400', dot: 'bg-red-500' },
+  high: { bg: 'bg-rose-500/10', border: 'border-rose-500/25', text: 'text-rose-400', dot: 'bg-rose-500' },
   medium: { bg: 'bg-amber-500/10', border: 'border-amber-500/25', text: 'text-amber-400', dot: 'bg-amber-500' },
-  low: { bg: 'bg-green-500/10', border: 'border-green-500/25', text: 'text-green-400', dot: 'bg-green-500' },
+  low: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/25', text: 'text-emerald-400', dot: 'bg-emerald-500' },
 }
 
 function getDueStatus(due_date) {
@@ -181,8 +181,8 @@ export default function Tasks() {
             { label: 'Done', value: tasks.filter(t => t.is_completed).length, color: 'text-green-400' },
           ].map((s, i) => (
             <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-center">
-              <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-xs text-neutral-600 mt-0.5">{s.label}</div>
+              <div className={`text-xl font-bold font-mono tabular-nums ${s.color}`}>{s.value}</div>
+              <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -191,7 +191,7 @@ export default function Tasks() {
         <div className="flex gap-1 bg-neutral-900 border border-neutral-800 rounded-xl p-1">
           {['active', 'completed'].map(tab => (
             <button key={tab} onClick={() => setFilter(tab)}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg capitalize transition-all ${
+              className={`flex-1 py-1.5 text-xs font-mono tabular-nums font-medium rounded-lg capitalize transition-all ${
                 filter === tab ? 'bg-indigo-600 text-white' : 'text-neutral-500 hover:text-white'
               }`}>
               {tab} ({tab === 'active' ? tasks.filter(t => !t.is_completed).length : tasks.filter(t => t.is_completed).length})

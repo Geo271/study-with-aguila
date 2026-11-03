@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 
 const FACTS = [
   "The Philippine Eagle is one of the world's largest, most powerful eagles.",
@@ -36,10 +37,9 @@ const MOOD_MESSAGES = {
     "Top marks. You've clearly put in the work.",
   ],
   thinking: [
-    "Let me find the best answer in your notes...",
-    "Great question. Searching your notes now.",
-    "Connecting the concepts from your material.",
-    "Working on your answer...",
+    "Searching your notes for the best answer...",
+    "Connecting the concepts from your material...",
+    "Formulating a clear academic explanation...",
   ],
   timer: [
     "Focus mode activated. No distractions.",
@@ -49,66 +49,32 @@ const MOOD_MESSAGES = {
   ],
 }
 
-const ANIMATIONS = `
-@keyframes aguiBob {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+const INTERACTION_QUOTES = [
+  "*Chirp!* Eagle focus locked on your syllabus!",
+  "Petting Aguila grants +5 study momentum! ⚡",
+  "Active recall + spaced repetition = unstoppable! 📚",
+  "Take a deep breath, scholar. You've got this! 🎯",
+  "Zero distractions. Full comprehension mode. 🦅",
+  "1% better every single day. Let's conquer it!",
+  "Wings spread, sharp mind. Let's fly! ✨",
+]
+
+const PARTICLE_EMOJIS = ['+1 Focus', '⚡', '✨', '🦅', '🎯', '📚', '💡', '🔥']
+
+const MASCOT_IMAGES = {
+  idle: '/mascot-idle.png',
+  studying: '/mascot-studying.png',
+  thinking: '/mascot-studying.png',
+  celebrating: '/mascot-celebrating.png',
+  timer: '/mascot-timer.png',
 }
-@keyframes aguiBobFast {
-  0%, 100% { transform: translateY(0px) rotate(-2deg); }
-  50% { transform: translateY(-14px) rotate(2deg); }
+
+const SIZE_MAP = {
+  sm: { width: 72, shadow: 'w-14' },
+  md: { width: 104, shadow: 'w-20' },
+  lg: { width: 144, shadow: 'w-28' },
+  xl: { width: 180, shadow: 'w-36' },
 }
-@keyframes aguiWingIdleL {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-5deg); }
-}
-@keyframes aguiWingIdleR {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(5deg); }
-}
-@keyframes aguiWingFlapL {
-  0%, 100% { transform: rotate(-22deg); }
-  50% { transform: rotate(12deg); }
-}
-@keyframes aguiWingFlapR {
-  0%, 100% { transform: rotate(22deg); }
-  50% { transform: rotate(-12deg); }
-}
-@keyframes aguiBeakTalk {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(14deg); }
-}
-@keyframes aguiTailWag {
-  0%, 100% { transform: rotate(-4deg); }
-  50% { transform: rotate(5deg); }
-}
-@keyframes aguiCrestSway {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-4deg); }
-}
-@keyframes aguiEyeBlink {
-  0%, 88%, 100% { transform: scaleY(1); }
-  92% { transform: scaleY(0.06); }
-  96% { transform: scaleY(1); }
-}
-@keyframes aguiEyeBlink2 {
-  0%, 72%, 100% { transform: scaleY(1); }
-  76% { transform: scaleY(0.06); }
-  80% { transform: scaleY(1); }
-}
-@keyframes aguiGlassesShine {
-  0%, 80%, 100% { opacity: 0; }
-  85%, 95% { opacity: 0.7; }
-}
-@keyframes aguiStarFloat {
-  0%, 100% { transform: translateY(0px) scale(1); opacity: 1; }
-  50% { transform: translateY(-6px) scale(1.2); opacity: 0.8; }
-}
-@keyframes aguiClockTick {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-`
 
 export default function AguiMascot({
   mood = 'idle',
@@ -119,222 +85,238 @@ export default function AguiMascot({
 }) {
   const [msgIndex, setMsgIndex] = useState(0)
   const [factIndex, setFactIndex] = useState(0)
+  const [prevMood, setPrevMood] = useState(mood)
+  const [isSquishing, setIsSquishing] = useState(false)
+  const [particles, setParticles] = useState([])
+  const [clickCount, setClickCount] = useState(0)
+  const [isHyperCelebration, setIsHyperCelebration] = useState(false)
+  const [interactiveQuote, setInteractiveQuote] = useState(null)
+  const [bubbleKey, setBubbleKey] = useState(0)
+
+  if (mood !== prevMood) {
+    setPrevMood(mood)
+    setMsgIndex(0)
+    setInteractiveQuote(null)
+  }
+
   const timerRef = useRef(null)
   const factTimerRef = useRef(null)
+  const squishTimeoutRef = useRef(null)
+  const comboResetTimeoutRef = useRef(null)
+  const hyperTimeoutRef = useRef(null)
 
   const messages = MOOD_MESSAGES[mood] || MOOD_MESSAGES.idle
+  const currentMood = isHyperCelebration ? 'celebrating' : mood
+  const mascotSrc = MASCOT_IMAGES[currentMood] || MASCOT_IMAGES.idle
+  const sizeConfig = SIZE_MAP[size] || SIZE_MAP.md
 
+  // Automatic speech bubble rotation
   useEffect(() => {
-    setMsgIndex(0)
     timerRef.current = setInterval(() => {
       setMsgIndex(i => (i + 1) % messages.length)
-    }, 5500)
+      setInteractiveQuote(null)
+      setBubbleKey(k => k + 1)
+    }, 6000)
     return () => clearInterval(timerRef.current)
-  }, [mood])
+  }, [messages.length])
 
+  // Trivia facts rotation
   useEffect(() => {
     factTimerRef.current = setInterval(() => {
       setFactIndex(i => (i + 1) % FACTS.length)
-    }, 10000)
+    }, 12000)
     return () => clearInterval(factTimerRef.current)
   }, [])
 
-  const displayMsg = customMessage || messages[msgIndex]
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (squishTimeoutRef.current) clearTimeout(squishTimeoutRef.current)
+      if (comboResetTimeoutRef.current) clearTimeout(comboResetTimeoutRef.current)
+      if (hyperTimeoutRef.current) clearTimeout(hyperTimeoutRef.current)
+    }
+  }, [])
 
-  const isCelebrating = mood === 'celebrating'
-  const isTalking = mood === 'thinking'
-  const isStudying = mood === 'studying'
-  const isTimer = mood === 'timer'
+  // Handle interactive clicks on Aguila
+  const handleMascotInteract = useCallback(() => {
+    // Retrigger squish animation
+    setIsSquishing(false)
+    if (squishTimeoutRef.current) clearTimeout(squishTimeoutRef.current)
+    // Small timeout to allow re-render of animation class
+    setTimeout(() => {
+      setIsSquishing(true)
+      squishTimeoutRef.current = setTimeout(() => setIsSquishing(false), 320)
+    }, 10)
 
-  const sizeMap = { sm: 72, md: 96, lg: 128, xl: 160 }
-  const svgSize = sizeMap[size] || 96
+    // Spawn floating particle
+    const newParticleId = Date.now() + Math.random()
+    const randomEmoji = PARTICLE_EMOJIS[Math.floor(Math.random() * PARTICLE_EMOJIS.length)]
+    const randomTx = Math.floor(Math.random() * 40) - 20 // -20px to +20px
 
-  const bobAnim = isCelebrating
-    ? `aguiBobFast 0.5s ease-in-out infinite`
-    : `aguiBob 2.8s ease-in-out infinite ${animationDelay}`
+    setParticles(prev => [
+      ...prev.slice(-6), // Keep max 7 particles
+      { id: newParticleId, emoji: randomEmoji, tx: `${randomTx}px` }
+    ])
 
-  const wingLAnim = isCelebrating
-    ? `aguiWingFlapL 0.38s ease-in-out infinite`
-    : `aguiWingIdleL 3.2s ease-in-out infinite`
+    // Cleanup particle after 850ms
+    setTimeout(() => {
+      setParticles(prev => prev.filter(p => p.id !== newParticleId))
+    }, 850)
 
-  const wingRAnim = isCelebrating
-    ? `aguiWingFlapR 0.38s ease-in-out infinite`
-    : `aguiWingIdleR 3.2s ease-in-out infinite`
+    // Combo streak calculation
+    setClickCount(c => {
+      const nextCount = c + 1
+      if (comboResetTimeoutRef.current) clearTimeout(comboResetTimeoutRef.current)
+      comboResetTimeoutRef.current = setTimeout(() => setClickCount(0), 3000)
 
-  const beakAnim = isTalking
-    ? `aguiBeakTalk 0.32s ease-in-out infinite`
-    : `none`
+      if (nextCount >= 5) {
+        setIsHyperCelebration(true)
+        setInteractiveQuote("🌟 ULTRA FOCUS COMBO! Aguila is cheering you on!")
+        setBubbleKey(k => k + 1)
+        if (hyperTimeoutRef.current) clearTimeout(hyperTimeoutRef.current)
+        hyperTimeoutRef.current = setTimeout(() => {
+          setIsHyperCelebration(false)
+          setInteractiveQuote(null)
+          setClickCount(0)
+        }, 4000)
+      } else {
+        const quote = INTERACTION_QUOTES[Math.floor(Math.random() * INTERACTION_QUOTES.length)]
+        setInteractiveQuote(quote)
+        setBubbleKey(k => k + 1)
+      }
+
+      return nextCount
+    })
+  }, [])
+
+  // Cycle bubble manually on bubble click
+  const handleBubbleClick = () => {
+    setMsgIndex(i => (i + 1) % messages.length)
+    setInteractiveQuote(null)
+    setBubbleKey(k => k + 1)
+  }
+
+  const displayMsg = interactiveQuote || customMessage || messages[msgIndex]
+  const isCelebrating = currentMood === 'celebrating'
+  const isThinking = currentMood === 'thinking'
+  const isTimer = currentMood === 'timer'
+  const isStudying = currentMood === 'studying'
+
+  // Pick the right motion class
+  let motionClass = 'animate-aguila-bob'
+  if (isCelebrating) {
+    motionClass = 'animate-aguila-celebrate'
+  } else if (isStudying || isThinking) {
+    motionClass = 'animate-aguila-studying'
+  }
 
   return (
-    <div className="flex flex-col items-center gap-2 select-none">
-      <style>{ANIMATIONS}</style>
-
+    <div className="flex flex-col items-center select-none relative">
+      {/* Speech bubble */}
       {showBubble && (
-        <div className="relative max-w-[200px] bg-neutral-800 border border-neutral-700 rounded-2xl rounded-bl-none px-3 py-2 shadow-sm">
-          <p className="text-xs text-neutral-300 leading-relaxed text-center">{displayMsg}</p>
-          <div
-            className="absolute -bottom-2 left-4 w-3 h-3 bg-neutral-800 border-b border-l border-neutral-700"
-            style={{ transform: 'rotate(-45deg)', borderRadius: '0 0 0 2px' }}
-          />
+        <div 
+          key={bubbleKey}
+          onClick={handleBubbleClick}
+          title="Click to cycle study wisdom"
+          className="relative mb-3 max-w-[250px] cursor-pointer group animate-aguila-bubble focus:outline-none"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBubbleClick() } }}
+        >
+          <div className="bg-neutral-900/95 border border-neutral-700/80 group-hover:border-amber-500/50 px-3.5 py-2 rounded-xl shadow-xl shadow-black/40 text-center backdrop-blur-md transition-colors duration-200">
+            <p className="text-xs font-medium text-neutral-200 leading-snug">
+              {displayMsg}
+            </p>
+            {isThinking && (
+              <span className="inline-flex gap-1 items-center justify-center mt-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              </span>
+            )}
+            <span className="block text-[9px] text-neutral-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity font-mono">
+              click for next tip ↻
+            </span>
+          </div>
+          {/* Speech bubble pointer */}
+          <div className="w-2.5 h-2.5 bg-neutral-900/95 border-r border-b border-neutral-700/80 group-hover:border-amber-500/50 transform rotate-45 mx-auto -mt-1.5 transition-colors duration-200" />
         </div>
       )}
 
-      <div style={{ animation: bobAnim, width: svgSize, height: 'auto', willChange: 'transform' }}>
-        <svg
-          viewBox="0 0 100 128"
-          xmlns="http://www.w3.org/2000/svg"
-          style={{ overflow: 'visible', display: 'block' }}
-        >
-          {/* ── Tail (behind body) ── */}
-          <g style={{
-            transformBox: 'fill-box',
-            transformOrigin: '50% 0%',
-            animation: `aguiTailWag 2.1s ease-in-out infinite`,
-          }}>
-            <path d="M36 106 Q50 122 64 106 Q57 102 50 109 Q43 102 36 106" fill="#5C3D11"/>
-            <path d="M40 109 Q50 118 60 109" fill="#4A2F0A" opacity="0.5"/>
-            <path d="M44 107 Q50 114 56 107" fill="#8B5E2A" opacity="0.3"/>
-          </g>
-
-          {/* ── Left wing (behind body) ── */}
-          <g style={{
-            transformBox: 'fill-box',
-            transformOrigin: '100% 50%',
-            animation: wingLAnim,
-          }}>
-            <path d="M28 70 Q3 66 1 48 Q13 55 23 68" fill="#4A2F0A"/>
-            <path d="M28 74 Q4 75 3 60 Q15 63 26 74" fill="#5C3D11"/>
-            <path d="M28 78 Q8 80 7 68 Q18 70 27 79" fill="#8B5E2A"/>
-          </g>
-
-          {/* ── Body ── */}
-          <ellipse cx="50" cy="80" rx="22" ry="27" fill="#8B5E2A"/>
-          <ellipse cx="50" cy="85" rx="13" ry="19" fill="#F2DEB0"/>
-
-          {/* ── Right wing (in front of body) ── */}
-          <g style={{
-            transformBox: 'fill-box',
-            transformOrigin: '0% 50%',
-            animation: wingRAnim,
-          }}>
-            {isTimer ? (
-              // Holding clock
-              <>
-                <path d="M72 70 Q92 66 94 50 Q85 57 77 68" fill="#4A2F0A"/>
-                <path d="M72 74 Q90 74 92 60 Q83 63 74 74" fill="#5C3D11"/>
-                <circle cx="88" cy="60" r="11" fill="#4ECDC4" stroke="#2C9A8A" strokeWidth="1.2"/>
-                <circle cx="88" cy="60" r="9" fill="#fff"/>
-                <line x1="88" y1="53" x2="88" y2="60" stroke="#2C3E50" strokeWidth="1.3" strokeLinecap="round"/>
-                <line
-                  x1="88" y1="60" x2="93" y2="62"
-                  stroke="#E74C3C" strokeWidth="1.3" strokeLinecap="round"
-                  style={{ transformBox: 'fill-box', transformOrigin: '88px 60px', animation: 'aguiClockTick 6s linear infinite' }}
-                />
-                <circle cx="88" cy="60" r="1.3" fill="#2C3E50"/>
-                <rect x="85" y="48" width="6" height="2.5" rx="1" fill="#2C9A8A"/>
-              </>
-            ) : (
-              <>
-                <path d="M72 70 Q97 66 99 48 Q87 55 77 68" fill="#4A2F0A"/>
-                <path d="M72 74 Q96 75 97 60 Q85 63 74 74" fill="#5C3D11"/>
-                <path d="M72 78 Q92 80 93 68 Q82 70 73 79" fill="#8B5E2A"/>
-              </>
-            )}
-          </g>
-
-          {/* ── Neck ── */}
-          <ellipse cx="50" cy="45" rx="10" ry="6" fill="#8B5E2A"/>
-
-          {/* ── Crest feathers ── */}
-          <g style={{
-            transformBox: 'fill-box',
-            transformOrigin: '50% 100%',
-            animation: `aguiCrestSway 3.8s ease-in-out infinite`,
-          }}>
-            <polygon points="36,23 39,10 42,22" fill="#4A2F0A"/>
-            <polygon points="44,20 47,6 51,19" fill="#5C3D11"/>
-            <polygon points="52,22 56,9 59,21" fill="#4A2F0A"/>
-          </g>
-
-          {/* ── Head ── */}
-          <ellipse cx="50" cy="30" rx="17" ry="16" fill="#8B5E2A"/>
-
-          {/* ── Face mask ── */}
-          <ellipse cx="52" cy="32" rx="11.5" ry="9.5" fill="#F2DEB0"/>
-
-          {/* ── Eye (blinks via CSS) ── */}
-          <g style={{
-            transformBox: 'fill-box',
-            transformOrigin: '57px 27px',
-            animation: `aguiEyeBlink ${3.5 + Math.random()}s ease-in-out infinite`,
-          }}>
-            <ellipse cx="57" cy="27" rx="4.5" ry="4" fill="white"/>
-            <circle cx="57" cy="27" r="2.8" fill="#1A0800"/>
-            <circle cx="58.2" cy="25.8" r="0.9" fill="white"/>
-          </g>
-
-          {/* ── Studying glasses overlay ── */}
-          {isStudying && (
-            <g opacity="0.9">
-              <circle cx="51" cy="28" r="5" fill="none" stroke="#4A2F0A" strokeWidth="1.3"/>
-              <circle cx="61" cy="28" r="5" fill="none" stroke="#4A2F0A" strokeWidth="1.3"/>
-              <line x1="46" y1="28" x2="42" y2="27.5" stroke="#4A2F0A" strokeWidth="1.3"/>
-              <line x1="66" y1="28" x2="68" y2="27.5" stroke="#4A2F0A" strokeWidth="1.3"/>
-              <line x1="56" y1="28" x2="56" y2="28" stroke="#4A2F0A" strokeWidth="1.3"/>
-              {/* Glasses shine */}
-              <path
-                d="M48 26 Q50 25 51 26"
-                stroke="white" strokeWidth="0.8" fill="none"
-                style={{ animation: `aguiGlassesShine 5s ease-in-out infinite` }}
-              />
-            </g>
-          )}
-
-          {/* ── Celebrating stars ── */}
-          {isCelebrating && (
-            <>
-              <text
-                x="6" y="20" fontSize="9" fill="#F5C218" textAnchor="middle"
-                style={{ animation: 'aguiStarFloat 0.6s ease-in-out infinite' }}>★</text>
-              <text
-                x="86" y="16" fontSize="8" fill="#4ECDC4" textAnchor="middle"
-                style={{ animation: 'aguiStarFloat 0.6s ease-in-out infinite 0.2s' }}>✦</text>
-              <text
-                x="10" y="40" fontSize="7" fill="#FF6B6B" textAnchor="middle"
-                style={{ animation: 'aguiStarFloat 0.6s ease-in-out infinite 0.1s' }}>✦</text>
-              <text
-                x="90" y="38" fontSize="7" fill="#F5C218" textAnchor="middle"
-                style={{ animation: 'aguiStarFloat 0.6s ease-in-out infinite 0.3s' }}>★</text>
-            </>
-          )}
-
-          {/* ── Beak upper ── */}
-          <polygon points="64,27 79,30 64,33" fill="#F5C218"/>
-
-          {/* ── Beak lower (animates when talking) ── */}
-          <g style={{
-            transformBox: 'fill-box',
-            transformOrigin: '64px 33px',
-            animation: beakAnim,
-          }}>
-            <polygon points="64,33 77,35 64,38" fill="#D4A017"/>
-          </g>
-
-          {/* ── Feet ── */}
-          <line x1="43" y1="108" x2="37" y2="120" stroke="#F5C218" strokeWidth="2.5" strokeLinecap="round"/>
-          <line x1="37" y1="120" x2="31" y2="122" stroke="#F5C218" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="37" y1="120" x2="34" y2="126" stroke="#F5C218" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="37" y1="120" x2="40" y2="124" stroke="#F5C218" strokeWidth="2" strokeLinecap="round"/>
-
-          <line x1="57" y1="108" x2="63" y2="120" stroke="#F5C218" strokeWidth="2.5" strokeLinecap="round"/>
-          <line x1="63" y1="120" x2="69" y2="122" stroke="#F5C218" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="63" y1="120" x2="66" y2="126" stroke="#F5C218" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="63" y1="120" x2="60" y2="124" stroke="#F5C218" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
+      {/* Floating Interactive Particles */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-visible z-20">
+        {particles.map(p => (
+          <span
+            key={p.id}
+            className="absolute text-xs font-bold text-amber-300 font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] animate-aguila-particle px-1.5 py-0.5 rounded-full bg-neutral-900/80 border border-amber-500/30"
+            style={{ '--p-tx': p.tx }}
+          >
+            {p.emoji}
+          </span>
+        ))}
       </div>
 
+      {/* Mascot Graphic container with interactive click, idle bobbing, and drop shadow */}
+      <div 
+        className="relative flex flex-col items-center justify-center cursor-pointer group aguila-clickable focus:outline-none"
+        onClick={handleMascotInteract}
+        role="button"
+        tabIndex={0}
+        aria-label="Interact with Aguila mascot - click to pat or motivate"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleMascotInteract()
+          }
+        }}
+        style={{ animationDelay }}
+      >
+        {/* Animated mascot sprite */}
+        <div 
+          className={`relative z-10 transition-transform ${motionClass} ${
+            isSquishing ? 'animate-aguila-squash' : ''
+          }`}
+        >
+          <Image
+            src={mascotSrc}
+            alt={`Aguila mascot - ${currentMood}`}
+            width={sizeConfig.width}
+            height={sizeConfig.width}
+            className="aguila-sprite object-contain drop-shadow-md select-none pointer-events-none transition-filter duration-200"
+            style={{
+              imageRendering: 'pixelated',
+              width: `${sizeConfig.width}px`,
+              height: `${sizeConfig.width}px`,
+            }}
+            priority
+            unoptimized
+          />
+
+          {/* Status badge when timer is active */}
+          {isTimer && (
+            <span className="absolute bottom-1 right-1 flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500 border-2 border-neutral-950" />
+            </span>
+          )}
+
+          {/* Combo badge when interacting quickly */}
+          {clickCount > 1 && !isHyperCelebration && (
+            <span className="absolute -top-1 -right-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-neutral-950 font-mono shadow-md animate-bounce">
+              x{clickCount}
+            </span>
+          )}
+        </div>
+
+        {/* Ambient Ground Shadow that expands and contracts with breathing float */}
+        <div 
+          className={`${sizeConfig.shadow} h-3 bg-black/45 rounded-[50%] blur-[2px] mt-[-6px] animate-aguila-shadow transition-all`}
+        />
+      </div>
+
+      {/* Trivia facts under idle mascot */}
       {mood === 'idle' && (
-        <p className="text-xs text-neutral-600 italic text-center max-w-[190px] leading-relaxed mt-0.5">
+        <p className="text-[11px] text-neutral-500 italic text-center max-w-[220px] leading-relaxed mt-2.5">
           &ldquo;{FACTS[factIndex]}&rdquo;
         </p>
       )}

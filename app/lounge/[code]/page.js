@@ -1026,14 +1026,20 @@ function computeLevel(xp) { return Math.floor(xp / XP_PER_LEVEL) + 1 }
 const XP_ACTIONS = { message: 2, quiz: 20, pdf: 15, emote: 1 }
 
 function useXP(userId) {
-  const [xp, setXP] = useState(0)
-  const key = `aguila_xp_${userId}`
+  const key = userId ? `aguila_xp_${userId}` : ''
+  const [prevUserId, setPrevUserId] = useState(userId)
+  const [xp, setXP] = useState(() => {
+    if (typeof window !== 'undefined' && key) {
+      return parseInt(localStorage.getItem(key) || '0', 10)
+    }
+    return 0
+  })
 
-  useEffect(() => {
-    if (!userId) return
-    const stored = parseInt(localStorage.getItem(key) || '0', 10)
+  if (userId !== prevUserId) {
+    setPrevUserId(userId)
+    const stored = typeof window !== 'undefined' && key ? parseInt(localStorage.getItem(key) || '0', 10) : 0
     setXP(stored)
-  }, [userId, key])
+  }
 
   const addXP = useCallback((action) => {
     const gain = XP_ACTIONS[action] || 1
@@ -1059,7 +1065,7 @@ export default function LoungePage() {
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [chatOpen, setChatOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false))
   const [showMusicInput, setShowMusicInput] = useState(false)
   const [musicLink, setMusicLink] = useState('')
   const [copied, setCopied] = useState(false)
@@ -1120,10 +1126,7 @@ const {
     el.scrollTop  = Math.max(0, ty)
   }, [myPosition, AVATAR_SIZE])
 
-  // Chat open on desktop by default
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768) setChatOpen(true)
-  }, [])
+
 
   const handleCopyCode = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2200) }
 

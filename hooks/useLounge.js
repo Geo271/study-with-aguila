@@ -22,13 +22,14 @@ function getDisplayName(email = '') { return email?.split('@')[0].slice(0, 12) |
 
 export function useLounge({ loungeCode, user }) {
   const channelRef        = useRef(null)
-  const myPositionRef     = useRef({ x: ROOM_WIDTH/2 - AVATAR_SIZE/2, y: ROOM_HEIGHT/2 - AVATAR_SIZE/2 })
+  const initialPosition   = { x: ROOM_WIDTH/2 - AVATAR_SIZE/2, y: ROOM_HEIGHT/2 - AVATAR_SIZE/2 }
+  const myPositionRef     = useRef(initialPosition)
   const keysRef           = useRef({})
   const animFrameRef      = useRef(null)
   const broadcastTimerRef = useRef(null)
   const movingRef         = useRef(false)
 
-  const [myPosition,   setMyPosition]   = useState(myPositionRef.current)
+  const [myPosition,   setMyPosition]   = useState(initialPosition)
   const [otherUsers,   setOtherUsers]   = useState({})
   const [presenceList, setPresenceList] = useState([])
   const [isConnected,  setIsConnected]  = useState(false)
@@ -100,7 +101,10 @@ export function useLounge({ loungeCode, user }) {
     idleTimerRef.current = setTimeout(() => setIsIdle(true), 60000)
   }, [])
 
-  useEffect(() => { wakeUp(); return () => clearTimeout(idleTimerRef.current) }, [wakeUp])
+  useEffect(() => {
+    idleTimerRef.current = setTimeout(() => setIsIdle(true), 60000)
+    return () => clearTimeout(idleTimerRef.current)
+  }, [])
 
   const broadcastPosition = useCallback((x, y, moving, idleState) => {
     if (!channelRef.current || broadcastTimerRef.current) return

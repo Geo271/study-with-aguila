@@ -25,19 +25,33 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/login'); return }
-      setUser(session.user)
-      await loadStats(session.user.id)
-      setLoading(false)
+  const buildTips = (avgScore, focusAccuracy, docCount, wrongCount) => {
+    const t = []
+    if (docCount === 0) {
+      t.push({ label: 'Get started', text: 'Upload your first PDF notes to begin AI-powered studying.' })
     }
-    load()
-  }, [])
+    if (wrongCount > 0) {
+      t.push({ label: 'Review needed', text: `You have ${wrongCount} questions answered incorrectly. Ask Aguila to explain those topics.` })
+    }
+    if (avgScore > 0 && avgScore < 60) {
+      t.push({ label: 'Diagnostic', text: 'Ask Aguila for an overview of key terms before retaking the quiz.' })
+    }
+    if (avgScore >= 80) {
+      t.push({ label: 'High mastery', text: 'You are mastering the material. Challenge yourself with higher question counts.' })
+    }
+    if (focusAccuracy < 50 && focusAccuracy > 0) {
+      t.push({ label: 'Habit building', text: 'Try 15-minute Pomodoro sessions to build sustainable focus stamina.' })
+    }
+    if (focusAccuracy >= 80) {
+      t.push({ label: 'Great discipline', text: 'Outstanding stamina. You are completing most scheduled focus cycles.' })
+    }
+    if (t.length === 0) {
+      t.push({ label: 'Consistency', text: 'Even 25 focused minutes a day builds deep retention over time.' })
+    }
+    setTips(t)
+  }
 
   const loadStats = async (userId) => {
-    // Read from quiz_results (populated by QuizMode on finish)
     const { data: results } = await supabase
       .from('quiz_results')
       .select('*, quizzes(title, created_at)')
@@ -45,14 +59,12 @@ export default function Dashboard() {
       .order('completed_at', { ascending: false })
       .limit(20)
 
-    // Fallback: also read quizzes directly to show they exist
     const { data: allQuizzes } = await supabase
       .from('quizzes')
       .select('id, title, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
-    // Wrong answers for weak areas analysis
     const { data: wrongAnswers } = await supabase
       .from('quiz_wrong_answers')
       .select('question, correct_answer')
@@ -60,20 +72,17 @@ export default function Dashboard() {
       .order('created_at', { ascending: false })
       .limit(50)
 
-    // Pomodoro
     const { data: pomodoros } = await supabase
       .from('pomodoro_sessions')
       .select('*')
       .eq('user_id', userId)
       .order('started_at', { ascending: false })
 
-    // Documents
     const { count: docCount } = await supabase
       .from('documents')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
 
-    // Chat messages
     const { count: chatCount } = await supabase
       .from('chat_messages')
       .select('*', { count: 'exact', head: true })
@@ -85,7 +94,6 @@ export default function Dashboard() {
     const focusAccuracy = pomodoros?.length
       ? Math.round((completedPomodoros.length / pomodoros.length) * 100) : 0
 
-    // Use quiz_results if available, otherwise show 0%
     const avgScore = results?.length
       ? Math.round(results.reduce((s, q) => s + (q.score / q.total * 100), 0) / results.length) : 0
 
@@ -107,50 +115,38 @@ export default function Dashboard() {
     buildTips(avgScore, focusAccuracy, docCount || 0, wrongAnswers?.length || 0)
   }
 
-  const buildTips = (avgScore, focusAccuracy, docCount, wrongCount) => {
-    const t = []
-    if (docCount === 0) {
-      t.push({ label: 'Get started', text: 'Upload your first PDF notes to begin AI-powered studying.' })
+  useEffect(() => {
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
+      setUser(session.user)
+      await loadStats(session.user.id)
+      setLoading(false)
     }
-    if (wrongCount > 0) {
-      t.push({ label: 'Review needed', text: `You have ${wrongCount} questions you answered incorrectly. Ask Aguila to explain those topics.` })
-    }
-    if (avgScore > 0 && avgScore < 60) {
-      t.push({ label: 'Quiz scores low', text: 'Try asking Aguila to explain key concepts before retaking the quiz.' })
-    }
-    if (avgScore >= 80) {
-      t.push({ label: 'Excellent scores', text: 'You are mastering the material. Challenge yourself with harder questions.' })
-    }
-    if (focusAccuracy < 50 && focusAccuracy > 0) {
-      t.push({ label: 'Focus interrupted', text: 'Try shorter 15-minute Pomodoro sessions to build your focus habit.' })
-    }
-    if (focusAccuracy >= 80) {
-      t.push({ label: 'Great focus', text: 'Outstanding discipline. You are completing most of your Pomodoro sessions.' })
-    }
-    if (t.length === 0) {
-      t.push({ label: 'Keep going', text: 'Consistency compounds. Even 30 focused minutes a day builds mastery over time.' })
-    }
-    setTips(t)
-  }
+    load()
+  }, [])
 
   if (loading) return (
     <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-      <div className="flex items-center gap-3 text-neutral-500">
-        {Icon.spinner('w-5 h-5 text-indigo-500')}
-        Loading dashboard...
+      <div className="flex items-center gap-3 text-neutral-400 text-xs font-mono uppercase tracking-wider">
+        {Icon.spinner('w-4 h-4 text-amber-500')}
+        Loading analytics...
       </div>
     </div>
   )
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="sticky top-0 z-10 bg-neutral-900/95 backdrop-blur border-b border-neutral-800 px-4 py-3.5">
+      <header className="sticky top-0 z-10 bg-neutral-900/95 backdrop-blur border-b border-neutral-800 px-4 py-3">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <EagleLogo/>
-            <span className="font-bold text-white text-sm">Progress</span>
+            <div>
+              <span className="font-semibold text-white text-sm tracking-tight">Study Analytics</span>
+              <span className="ml-2 text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">Records</span>
+            </div>
           </div>
-          <Link href="/" className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-700 transition-all">
+          <Link href="/" className="flex items-center gap-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800/90 hover:bg-neutral-700 px-3 py-1.5 rounded-lg border border-neutral-700 transition-all font-medium">
             {Icon.history('w-3.5 h-3.5')} Back to study
           </Link>
         </div>
@@ -161,37 +157,39 @@ export default function Dashboard() {
         {/* Stats grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Files uploaded', value: stats?.docCount ?? 0, color: 'text-indigo-400' },
-            { label: 'Questions asked', value: stats?.chatCount ?? 0, color: 'text-cyan-400' },
-            { label: 'Avg quiz score', value: stats?.resultCount > 0 ? `${stats.avgScore}%` : '—', color: 'text-green-400' },
-            { label: 'Focus sessions', value: pomodoroStats?.completedPomodoros ?? 0, color: 'text-amber-400' },
+            { label: 'Files uploaded', value: stats?.docCount ?? 0, badge: 'Sources' },
+            { label: 'Questions asked', value: stats?.chatCount ?? 0, badge: 'Queries' },
+            { label: 'Avg quiz score', value: stats?.resultCount > 0 ? `${stats.avgScore}%` : '—', badge: 'Performance' },
+            { label: 'Focus completed', value: pomodoroStats?.completedPomodoros ?? 0, badge: 'Pomodoros' },
           ].map((s, i) => (
-            <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
-              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-xs text-neutral-600 mt-1">{s.label}</div>
+            <div key={i} className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-4 shadow-sm hover:border-neutral-700 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-semibold">{s.badge}</span>
+              </div>
+              <div className="text-2xl font-bold font-mono text-white tracking-tight tabular-nums">{s.value}</div>
+              <div className="text-xs text-neutral-400 mt-1">{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Focus accuracy */}
+        {/* Focus consistency */}
         {pomodoroStats && pomodoroStats.totalSessions > 0 && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+          <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-white">Focus accuracy</h3>
-              <span className="text-xs text-neutral-500">
-                {pomodoroStats.completedPomodoros} of {pomodoroStats.totalSessions} completed
-                · {pomodoroStats.totalFocusMin} min total
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-300">Focus consistency</h3>
+              <span className="text-xs text-neutral-400 font-mono tabular-nums">
+                {pomodoroStats.completedPomodoros} of {pomodoroStats.totalSessions} completed · {pomodoroStats.totalFocusMin} min total
               </span>
             </div>
-            <div className="w-full bg-neutral-800 rounded-full h-2.5">
+            <div className="w-full bg-neutral-800/80 rounded-full h-2 overflow-hidden border border-neutral-700/40">
               <div
-                className="bg-indigo-500 h-2.5 rounded-full transition-all duration-700"
+                className="bg-emerald-500 h-2 rounded-full transition-all duration-700"
                 style={{ width: `${pomodoroStats.focusAccuracy}%` }}
               />
             </div>
-            <div className="flex justify-between text-xs text-neutral-600 mt-1.5">
+            <div className="flex justify-between text-xs text-neutral-500 mt-2 font-mono tabular-nums">
               <span>0%</span>
-              <span className="text-indigo-400 font-medium">{pomodoroStats.focusAccuracy}% accuracy</span>
+              <span className="text-emerald-400 font-medium">{pomodoroStats.focusAccuracy}% completed</span>
               <span>100%</span>
             </div>
           </div>
@@ -199,67 +197,70 @@ export default function Dashboard() {
 
         {/* Quiz score history */}
         {quizHistory.length > 0 ? (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">
-              Quiz results
-              <span className="text-neutral-600 font-normal ml-2">({quizHistory.length} taken)</span>
-            </h3>
+          <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-300">
+                Recent exam performance
+              </h3>
+              <span className="text-xs text-neutral-400 font-mono tabular-nums">
+                {quizHistory.length} completed
+              </span>
+            </div>
             <div className="space-y-3">
               {quizHistory.map((q, i) => {
                 const pct = Math.round((q.score / q.total) * 100)
                 const date = new Date(q.completed_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <div className={`text-sm font-bold w-10 text-right flex-shrink-0 ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                    <div className={`text-xs font-mono font-bold w-12 text-right flex-shrink-0 tabular-nums ${pct >= 80 ? 'text-emerald-400' : pct >= 60 ? 'text-amber-400' : 'text-rose-400'}`}>
                       {pct}%
                     </div>
                     <div className="flex-1">
-                      <div className="w-full bg-neutral-800 rounded-full h-2">
+                      <div className="w-full bg-neutral-800 rounded-full h-1.5 overflow-hidden">
                         <div
-                          className={`h-2 rounded-full transition-all duration-500 ${pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                          className={`h-1.5 rounded-full transition-all duration-500 ${pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
                     </div>
-                    <div className="text-xs text-neutral-600 w-14 text-right flex-shrink-0">{q.score}/{q.total}</div>
-                    <div className="text-xs text-neutral-700 w-14 text-right flex-shrink-0 hidden sm:block">{date}</div>
+                    <div className="text-xs font-mono text-neutral-400 w-14 text-right flex-shrink-0 tabular-nums">{q.score}/{q.total}</div>
+                    <div className="text-xs text-neutral-500 w-16 text-right flex-shrink-0 hidden sm:block font-mono">{date}</div>
                   </div>
                 )
               })}
             </div>
           </div>
         ) : (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center">
-            {Icon.quiz('w-8 h-8 mx-auto text-neutral-700 mb-3')}
-            <p className="text-neutral-500 text-sm">No quiz results yet.</p>
-            <p className="text-neutral-700 text-xs mt-1">Complete a quiz and your scores will appear here.</p>
+          <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-8 text-center shadow-sm">
+            <p className="text-neutral-400 text-sm font-medium">No quiz results logged yet.</p>
+            <p className="text-neutral-500 text-xs mt-1">Complete a quiz in your study sessions and your performance records will appear here.</p>
           </div>
         )}
 
         {/* Weak areas */}
         {wrongAreas.length > 0 && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-1">Areas to review</h3>
-            <p className="text-xs text-neutral-600 mb-4">Questions you answered incorrectly — ask Aguila to explain these.</p>
+          <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-5 shadow-sm">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-300 mb-1">Knowledge gaps to reinforce</h3>
+            <p className="text-xs text-neutral-400 mb-4">Concepts answered incorrectly across your quizzes.</p>
             <div className="space-y-2 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {wrongAreas.slice(0, 10).map((w, i) => (
-                <div key={i} className="bg-red-500/8 border border-red-500/15 rounded-xl p-3">
-                  <p className="text-xs text-neutral-300 leading-relaxed">{w.question}</p>
-                  <p className="text-xs text-green-400 mt-1 font-medium">Answer: {w.correct_answer}</p>
+                <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-lg p-3">
+                  <p className="text-xs text-neutral-200 leading-relaxed">{w.question}</p>
+                  <p className="text-xs text-emerald-400 mt-1.5 font-medium font-mono">Correct: {w.correct_answer}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Tips */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Aguila's recommendations</h3>
-          <div className="space-y-3">
+        {/* Recommendations */}
+        <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-5 shadow-sm">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-300 mb-4">Aguila&apos;s recommendations</h3>
+          <div className="space-y-2.5">
             {tips.map((tip, i) => (
-              <div key={i} className="flex gap-3 p-3.5 bg-indigo-500/8 border border-indigo-500/15 rounded-xl">
-                <div className="flex-shrink-0 text-xs font-semibold text-indigo-400 pt-0.5 w-24">{tip.label}</div>
-                <p className="text-sm text-neutral-300 leading-relaxed">{tip.text}</p>
+              <div key={i} className="flex gap-3 p-3 bg-neutral-950 border border-neutral-800/80 rounded-lg">
+                <div className="flex-shrink-0 text-xs font-semibold text-amber-400 pt-0.5 w-28 uppercase font-mono tracking-wider">{tip.label}</div>
+                <p className="text-xs text-neutral-300 leading-relaxed">{tip.text}</p>
               </div>
             ))}
           </div>
