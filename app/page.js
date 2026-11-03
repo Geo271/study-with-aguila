@@ -637,105 +637,134 @@ export default function Home() {
     setUploadTray(prev => prev.filter((_, i) => i !== idx))
   }
 
-  // ── Start session ─────────────────────────────────────────────────
+  // ── Start session (High-Speed Concurrent Upload & Immediate UI Release) ──
   const handleStartSession = async () => {
-    if (!uploadTray.length) return
+    if (!uploadTray.length || isProcessing) return
     setIsProcessing(true)
     setMascotMood('studying')
 
-    const firstFile = uploadTray[0].file
-    const autoTitle = firstFile.name
-      .replace(/\.[^/.]+$/, '')
-      .replace(/[_\-\[\]()]+/g, ' ')
-      .trim()
+    try {
+      const firstFile = uploadTray[0].file
+      const autoTitle = firstFile.name
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[_\-\[\]()]+/g, ' ')
+        .trim()
 
-    const sessionResult = await createSession(user.id, autoTitle)
-    if (!sessionResult.success) { setIsProcessing(false); setMascotMood('idle'); return }
-
-    const session = sessionResult.session
-    const docIds = []
-    let firstExtractedText = ''
-
-    for (let i = 0; i < uploadTray.length; i++) {
-      const item = uploadTray[i]
-      setUploadTray(prev => prev.map((p, idx) => idx === i ? { ...p, state: 'uploading' } : p))
-
-      const fd = new FormData()
-      fd.append('file', item.file)
-
-      let result
-      if (item.type === 'ocr') {
-        result = await processOCR(fd, user.id, session.id)
-      } else {
-        result = await processPDF(fd, user.id, session.id)
+      const sessionResult = await createSession(user.id, autoTitle)
+      if (!sessionResult.success) {
+        setMessages(prev => [...prev, { role: 'ai', content: `Could not create session: ${sessionResult.error}` }])
+        setIsProcessing(false)
+        setMascotMood('idle')
+        return
       }
 
-      setUploadTray(prev => prev.map((p, idx) => idx === i ? { ...p, state: result.success ? 'done' : 'error' } : p))
-      if (result.success) {
-        docIds.push(result.documentId)
-        if (result.topicTitle) {
-          session.title = result.topicTitle
+      const session = sessionResult.session
+      const docIds = []
+      let firstExtractedText = ''
+
+      // Process uploaded files in parallel for maximum upload throughput
+      const processResults = await Promise.all(
+        uploadTray.map(async (item, idx) => {
+          setUploadTray(prev => prev.map((p, i) => i === idx ? { ...p, state: 'uploading' } : p))
+          const fd = new FormData()
+          fd.append('file', item.file)
+          const res = item.type === 'ocr'
+            ? await processOCR(fd, user.id, session.id)
+            : await processPDF(fd, user.id, session.id)
+          setUploadTray(prev => prev.map((p, i) => i === idx ? { ...p, state: res.success ? 'done' : 'error' } : p))
+          return res
+        })
+      )
+
+      processResults.forEach((result, idx) => {
+        if (result.success) {
+          docIds.push(result.documentId)
+          if (result.topicTitle) {
+            session.title = result.topicTitle
+          }
+          if (idx === 0) firstExtractedText = result.extractedText || ''
         }
-        if (i === 0) firstExtractedText = result.extractedText || ''
+      })
+
+      setCurrentSession(session)
+      setUploadedDocs(docIds)
+      setMascotMood('idle')
+      setMessages([{
+        role: 'ai',
+        content: `Session **"${session.title || autoTitle}"** is ready. Processed ${docIds.length} file${docIds.length > 1 ? 's' : ''}. Ask me anything or I'll generate a quiz automatically.`,
+      }])
+
+      // Clear upload tray and unlock UI immediately so student never waits
+      setUploadTray([])
+      setIsProcessing(false)
+      inputRef.current?.focus()
+      await refreshSessions()
+
+      // Asynchronous background quiz generation (non-blocking)
+      if (docIds.length && firstExtractedText) {
+        setIsGeneratingQuiz(true)
+        generateQuiz(docIds[0], user.id, 5, session.id)
+          .then(quizResult => {
+            setIsGeneratingQuiz(false)
+            if (quizResult?.success) {
+              setAutoQuizReady({ questions: quizResult.questions, quizId: quizResult.quizId })
+              setMessages(prev => [...prev, {
+                role: 'ai',
+                content: `A 5-question quiz has been automatically generated from your notes. Tap **Start Quiz** below to begin.`,
+              }])
+            }
+          })
+          .catch(err => {
+            setIsGeneratingQuiz(false)
+            console.warn('Background auto quiz generation skipped:', err.message)
+          })
       }
+    } catch (err) {
+      console.error('handleStartSession error:', err)
+      setMessages(prev => [...prev, { role: 'ai', content: `Upload error: ${err.message}` }])
+    } finally {
+      setIsProcessing(false)
+      setMascotMood('idle')
     }
-
-    setCurrentSession(session)
-    setUploadedDocs(docIds)
-    setMascotMood('idle')
-    setMessages([{
-      role: 'ai',
-      content: `Session **"${session.title || autoTitle}"** is ready. Processed ${docIds.length} file${docIds.length > 1 ? 's' : ''}. Ask me anything or I'll generate a quiz automatically.`,
-    }])
-
-    await refreshSessions()
-
-    if (docIds.length && firstExtractedText) {
-      setIsGeneratingQuiz(true)
-      const quizResult = await autoGenerateQuiz(docIds[0], user.id, session.id, firstExtractedText)
-      setIsGeneratingQuiz(false)
-      if (quizResult.success) {
-        // 🌟 UPDATED: Now stores both questions and the quizId!
-        setAutoQuizReady({ questions: quizResult.questions, quizId: quizResult.quizId })
-        setMessages(prev => [...prev, {
-          role: 'ai',
-          content: `A 5-question quiz has been automatically generated from your notes. Tap **Start Quiz** below to begin.`,
-        }])
-      }
-    }
-
-    setUploadTray([])
-    setIsProcessing(false)
-    inputRef.current?.focus()
   }
 
-  // ── Add extra files to existing session ───────────────────────────
+  // ── Add extra files to existing session (Parallelized) ─────────────
   const handleAddExtra = async () => {
-    if (!extraTray.length || !currentSession) return
+    if (!extraTray.length || !currentSession || addingExtra) return
     setAddingExtra(true)
 
-    const newDocs = [...uploadedDocs]
-    for (let i = 0; i < extraTray.length; i++) {
-      const item = extraTray[i]
-      setExtraTray(prev => prev.map((p, idx) => idx === i ? { ...p, state: 'uploading' } : p))
-      const fd = new FormData()
-      fd.append('file', item.file)
-      const r = item.type === 'ocr'
-        ? await processOCR(fd, user.id, currentSession.id)
-        : await processPDF(fd, user.id, currentSession.id)
-      setExtraTray(prev => prev.map((p, idx) => idx === i ? { ...p, state: r.success ? 'done' : 'error' } : p))
-      if (r.success) newDocs.push(r.documentId)
-    }
+    try {
+      const newDocs = [...uploadedDocs]
+      const results = await Promise.all(
+        extraTray.map(async (item, idx) => {
+          setExtraTray(prev => prev.map((p, i) => i === idx ? { ...p, state: 'uploading' } : p))
+          const fd = new FormData()
+          fd.append('file', item.file)
+          const r = item.type === 'ocr'
+            ? await processOCR(fd, user.id, currentSession.id)
+            : await processPDF(fd, user.id, currentSession.id)
+          setExtraTray(prev => prev.map((p, i) => i === idx ? { ...p, state: r.success ? 'done' : 'error' } : p))
+          return r
+        })
+      )
 
-    setUploadedDocs(newDocs)
-    setAddingExtra(false)
-    setExtraTray([])
-    setShowExtraInput(false)
-    setMessages(prev => [...prev, {
-      role: 'ai',
-      content: `Added ${extraTray.length} more file${extraTray.length > 1 ? 's' : ''} to this session.`,
-    }])
-    await refreshSessions()
+      results.forEach(r => {
+        if (r.success) newDocs.push(r.documentId)
+      })
+
+      setUploadedDocs(newDocs)
+      setExtraTray([])
+      setShowExtraInput(false)
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: `Added ${results.filter(r => r.success).length} more file(s) to this session.`,
+      }])
+      await refreshSessions()
+    } catch (err) {
+      console.error('handleAddExtra error:', err)
+    } finally {
+      setAddingExtra(false)
+    }
   }
 
   const handleSend = async (e) => {

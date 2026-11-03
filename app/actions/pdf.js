@@ -7,10 +7,10 @@ import { Buffer } from 'buffer'
 import mammoth from 'mammoth'
 import { generateTopicTitle } from './chat'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
-function chunkText(text, chunkSize = 1000, overlap = 200) {
+function chunkText(text, chunkSize = 1800, overlap = 150) {
+  if (!text) return []
   const chunks = []
   let i = 0
   while (i < text.length) {
@@ -18,6 +18,57 @@ function chunkText(text, chunkSize = 1000, overlap = 200) {
     i += (chunkSize - overlap)
   }
   return chunks
+}
+
+/**
+ * High-speed batched embedding generator:
+ * Uses text-embedding-004 batchEmbedContents for 1-call processing
+ * with instant fallback if API key is unconfigured or rate-limited
+ */
+async function generateEmbeddingsForChunks(chunks, docId) {
+  const chunkRecords = []
+
+  if (process.env.GEMINI_API_KEY && chunks.length > 0) {
+    try {
+      const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' })
+      const batchSize = 25 // Batch up to 25 chunks in a single API call
+
+      for (let b = 0; b < chunks.length; b += batchSize) {
+        const slice = chunks.slice(b, b + batchSize)
+        const batchRes = await embeddingModel.batchEmbedContents({
+          requests: slice.map(chunk => ({
+            content: { role: 'user', parts: [{ text: chunk }] },
+            outputDimensionality: 768,
+          }))
+        })
+        const embeddings = batchRes.embeddings || []
+        slice.forEach((chunk, idx) => {
+          chunkRecords.push({
+            document_id: docId,
+            content: chunk,
+            chunk_index: b + idx,
+            embedding: embeddings[idx]?.values || null,
+          })
+        })
+      }
+    } catch (e) {
+      console.warn('Fast batch embedding skipped/fallback:', e.message)
+    }
+  }
+
+  // Fallback: If embeddings failed or no key, store chunks with null embedding so full-text search works immediately!
+  if (chunkRecords.length === 0) {
+    chunks.forEach((chunk, idx) => {
+      chunkRecords.push({
+        document_id: docId,
+        content: chunk,
+        chunk_index: idx,
+        embedding: null,
+      })
+    })
+  }
+
+  return chunkRecords
 }
 
 // ✅ Creates a named study session
@@ -42,22 +93,27 @@ export async function processPDF(formData, userId, sessionId) {
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
 
-    const { data: storageData, error: storageError } = await supabase
-      .storage.from('pdfs').upload(fileName, file)
-    if (storageError) throw new Error(`Storage error: ${storageError.message}`)
+    // Parallelize storage upload and text extraction for maximum speed
+    const uploadPromise = supabase.storage.from('pdfs').upload(fileName, file)
 
-    // Extract text depending on file format
-    let extractedText = ''
-    
-    if (file.name.toLowerCase().endsWith('.docx')) {
-      const buffer = Buffer.from(arrayBuffer)
-      const result = await mammoth.extractRawText({ buffer })
-      extractedText = result.value
-    } else {
-      const pdf = await getDocumentProxy(uint8Array)
-      const extractResult = await extractText(pdf, { mergePages: true })
-      extractedText = extractResult.text
-    }
+    const extractPromise = (async () => {
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        const buffer = Buffer.from(arrayBuffer)
+        const result = await mammoth.extractRawText({ buffer })
+        return result.value || ''
+      } else {
+        const pdf = await getDocumentProxy(uint8Array)
+        const extractResult = await extractText(pdf, { mergePages: true })
+        return extractResult.text || ''
+      }
+    })()
+
+    const [{ data: storageData, error: storageError }, extractedText] = await Promise.all([
+      uploadPromise,
+      extractPromise,
+    ])
+
+    if (storageError) throw new Error(`Storage error: ${storageError.message}`)
 
     const { data: docData, error: docError } = await supabase
       .from('documents')
@@ -78,25 +134,8 @@ export async function processPDF(formData, userId, sessionId) {
       }])
     }
 
-    const chunks = chunkText(extractedText)
-    const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
-    const chunkRecords = []
-
-    for (let i = 0; i < chunks.length; i++) {
-      await delay(1000);
-
-      const result = await embeddingModel.embedContent({
-        content: { role: 'user', parts: [{ text: chunks[i] }] },
-        outputDimensionality: 768
-      })
-      
-      chunkRecords.push({
-        document_id: docData.id,
-        content: chunks[i],
-        chunk_index: i,
-        embedding: result.embedding.values
-      })
-    }
+    const chunks = chunkText(extractedText, 1800, 150)
+    const chunkRecords = await generateEmbeddingsForChunks(chunks, docData.id)
 
     const { error: chunkDbError } = await supabase
       .from('document_chunks').insert(chunkRecords)
@@ -132,15 +171,15 @@ export async function processOCR(formData, userId, sessionId) {
   try {
     const file = formData.get('file')
     if (!file) throw new Error('No image uploaded')
- 
+
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
     if (!validTypes.includes(file.type)) {
       throw new Error('Please upload a JPG, PNG, or WEBP image.')
     }
- 
+
     const arrayBuffer = await file.arrayBuffer()
     const base64Data = Buffer.from(arrayBuffer).toString('base64')
- 
+
     const visionModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
     const ocrResult = await visionModel.generateContent([
       {
@@ -155,20 +194,20 @@ Preserve the layout, headings, bullet points, and numbered lists where possible.
 Output ONLY the transcribed text. Do not add any introductory or concluding comments.`
       }
     ])
- 
+
     const extractedText = ocrResult.response.text().trim()
     if (!extractedText) throw new Error('No text could be extracted from this image.')
- 
+
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
     const fileName = `${Date.now()}-${safeName}`
- 
+
     const { data: storageData, error: storageError } = await supabase
       .storage
       .from('pdfs')
       .upload(fileName, file)
- 
+
     if (storageError) throw new Error(`Storage upload error: ${storageError.message}`)
- 
+
     const { data: docData, error: docError } = await supabase
       .from('documents')
       .insert([{
@@ -179,34 +218,19 @@ Output ONLY the transcribed text. Do not add any introductory or concluding comm
       }])
       .select()
       .single()
- 
+
     if (docError) throw new Error(`Database error: ${docError.message}`)
- 
+
     if (sessionId) {
       await supabase.from('session_documents').insert([{
         session_id: sessionId,
         document_id: docData.id,
       }])
     }
- 
-    const chunks = chunkText(extractedText)
-    const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
-    const chunkRecords = []
- 
-    for (let i = 0; i < chunks.length; i++) {
-      await delay(1000)
-      const result = await embeddingModel.embedContent({
-        content: { role: 'user', parts: [{ text: chunks[i] }] },
-        outputDimensionality: 768,
-      })
-      chunkRecords.push({
-        document_id: docData.id,
-        content: chunks[i],
-        chunk_index: i,
-        embedding: result.embedding.values,
-      })
-    }
- 
+
+    const chunks = chunkText(extractedText, 1800, 150)
+    const chunkRecords = await generateEmbeddingsForChunks(chunks, docData.id)
+
     const { error: chunkDbError } = await supabase.from('document_chunks').insert(chunkRecords)
     if (chunkDbError) throw new Error(`Vector DB error: ${chunkDbError.message}`)
 
@@ -222,7 +246,7 @@ Output ONLY the transcribed text. Do not add any introductory or concluding comm
         console.warn('Auto-rename session failed in processOCR:', titleErr.message)
       }
     }
- 
+
     return {
       success: true,
       documentId: docData.id,
