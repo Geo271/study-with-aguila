@@ -8,12 +8,14 @@ import { processPDF, createSession, processOCR } from './actions/pdf'
 import {
   askDocument, getSessions, getArchivedSessions,
   archiveSession, restoreSession, getSessionMessages,
+  generateFlashcards,
 } from './actions/chat'
 import { generateQuiz } from './actions/quiz'
 import { checkEulaAccepted } from './actions/tasks'
 import QuizMode from '@/components/QuizMode'
 import PomodoroTimer from '@/components/PomodoroTimer'
 import AguiMascot from '@/components/AguiMascot'
+import FlashcardModal from '@/components/FlashcardModal'
 import { Icon } from '@/components/Icons'
 import ReactMarkdown from 'react-markdown'
 import mermaid from 'mermaid'
@@ -312,7 +314,7 @@ const TypewriterMarkdown = ({ content }) => {
 }
 
 // ── Retro Academic Message Bubble ─────────────────────────────────────
-function ChatMessage({ msg, userEmail, defaultModel }) {
+function ChatMessage({ msg, userEmail, defaultModel, onExplainSimpler = null }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
@@ -374,11 +376,21 @@ function ChatMessage({ msg, userEmail, defaultModel }) {
                 <span>{modelInfo.shortName}</span>
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {timeStr && (
-                <span className="text-[10px] text-neutral-500 font-mono tabular-nums">
+                <span className="text-[10px] text-neutral-500 font-mono tabular-nums mr-0.5">
                   {timeStr}
                 </span>
+              )}
+              {onExplainSimpler && (
+                <button
+                  onClick={() => onExplainSimpler(msg.content)}
+                  className="opacity-60 group-hover:opacity-100 hover:text-emerald-300 text-neutral-400 px-1.5 py-0.5 rounded hover:bg-neutral-800 transition-all text-[10px] font-mono flex items-center gap-1 border border-transparent hover:border-emerald-500/30"
+                  title="Feynman Technique: Explain like I'm 5 with an everyday analogy"
+                >
+                  <span>👶</span>
+                  <span className="hidden sm:inline">ELI5</span>
+                </button>
               )}
               <button
                 onClick={handleCopy}
@@ -431,6 +443,12 @@ export default function Home() {
   const [showModelMenu, setShowModelMenu] = useState(false)
   const [dailyUsage, setDailyUsage] = useState({ count: 0, tokens: 0, date: '' })
   const [showQuotaModal, setShowQuotaModal] = useState(false)
+
+  // 🌟 5 Student Hooks State
+  const [studyMode, setStudyMode] = useState('standard') // 'standard' | 'socratic'
+  const [showFlashcardModal, setShowFlashcardModal] = useState(false)
+  const [flashcards, setFlashcards] = useState([])
+  const [loadingFlashcards, setLoadingFlashcards] = useState(false)
 
   // Sessions
   const [sessions, setSessions] = useState([])
@@ -758,8 +776,8 @@ export default function Home() {
     setIsTyping(true)
     setMascotMood('thinking')
 
-    // 🌟 Pass selectedModel to backend
-    const result = await askDocument(msg, activeSessionId, user.id, selectedModel)
+    // 🌟 Pass selectedModel and active studyMode (Socratic / Standard) to backend
+    const result = await askDocument(msg, activeSessionId, user.id, selectedModel, studyMode)
 
     if (cancelRef.current) { setIsTyping(false); setMascotMood('idle'); return }
     setIsTyping(false)
@@ -814,6 +832,70 @@ export default function Home() {
         modelUsed: selectedModel,
         created_at: new Date().toISOString(),
       }])
+    }
+  }
+
+  // ── 🌟 The 5 Student Hooks Handlers ──────────────────────────────
+  const handleTriggerHook = async (hookMode, customPrompt = null) => {
+    if (hookMode === 'flashcards') {
+      await handleOpenFlashcards()
+      return
+    }
+
+    const defaultPrompts = {
+      cram: 'Generate an ultra-dense, high-yield exam cram cheatsheet covering essential formulas, definitions, and high-frequency exam traps for this topic.',
+      eli5: 'Explain the most challenging concept from our notes/discussion using the Feynman technique (ELI5) with an everyday real-world analogy.',
+      weakspots: 'Assess my current exam readiness score on this topic and diagnose my top 2 conceptual vulnerabilities with a 3-minute high-impact fix.',
+    }
+
+    const promptToSend = customPrompt || defaultPrompts[hookMode] || 'Synthesize key exam concepts.'
+
+    setInput('')
+    let activeSessionId = currentSession?.id
+    if (!activeSessionId) {
+      const sessionResult = await createSession(user.id, promptToSend.substring(0, 30) + '...')
+      if (sessionResult.success) {
+        activeSessionId = sessionResult.session.id
+        setCurrentSession(sessionResult.session)
+        setUploadedDocs([])
+        await refreshSessions()
+      } else {
+        return
+      }
+    }
+
+    const nowIso = new Date().toISOString()
+    setMessages(prev => [...prev, { role: 'user', content: promptToSend, created_at: nowIso }])
+    setIsTyping(true)
+    setMascotMood('thinking')
+
+    const result = await askDocument(promptToSend, activeSessionId, user.id, selectedModel, hookMode)
+
+    setIsTyping(false)
+    setMascotMood('idle')
+
+    if (result.success) {
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: result.answer,
+        isNew: true,
+        modelUsed: result.modelUsed || selectedModel,
+        created_at: new Date().toISOString(),
+      }])
+    }
+  }
+
+  const handleOpenFlashcards = async () => {
+    setShowFlashcardModal(true)
+    setLoadingFlashcards(true)
+    let chatContext = null
+    if (!uploadedDocs.length && messages.length > 0) {
+      chatContext = messages.slice(-8).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
+    }
+    const res = await generateFlashcards(currentSession?.id || (uploadedDocs[0] || null), user?.id, chatContext)
+    setLoadingFlashcards(false)
+    if (res.success && res.flashcards) {
+      setFlashcards(res.flashcards)
     }
   }
 
@@ -1377,6 +1459,101 @@ export default function Home() {
                     
                   </div>
 
+                  {/* 🌟 The 5 Student Hooks (Study Power Tools) */}
+                  <div className="w-full max-w-md mb-8">
+                    <div className="flex items-center justify-between mb-2.5 px-0.5">
+                      <span className="text-[11px] font-bold text-amber-400 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-amber-400 inline-block shadow-[0_0_4px_rgba(251,191,36,0.8)]" />
+                        5 Student Power Hooks
+                      </span>
+                      <span className="text-[10px] text-neutral-500 font-mono">Exam &amp; Recall Boosters</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Hook 1: Exam Cram Cheatsheet */}
+                      <button
+                        onClick={() => handleTriggerHook('cram')}
+                        className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left transition-all group"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">⚡</span>
+                          <span className="text-[9px] font-mono px-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">HOOK 1</span>
+                        </div>
+                        <p className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">Exam Cheatsheet</p>
+                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Formulas, definitions &amp; common traps</p>
+                      </button>
+
+                      {/* Hook 2: Feynman ELI5 Analogy */}
+                      <button
+                        onClick={() => handleTriggerHook('eli5')}
+                        className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-emerald-500/50 rounded-xl text-left transition-all group"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">👶</span>
+                          <span className="text-[9px] font-mono px-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HOOK 2</span>
+                        </div>
+                        <p className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors">Feynman (ELI5)</p>
+                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Intuitive real-world analogies</p>
+                      </button>
+
+                      {/* Hook 3: Socratic Tutor Mode */}
+                      <button
+                        onClick={() => {
+                          setStudyMode(m => m === 'socratic' ? 'standard' : 'socratic')
+                        }}
+                        className={`p-3 border rounded-xl text-left transition-all group ${
+                          studyMode === 'socratic'
+                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-sm'
+                            : 'bg-neutral-900/90 hover:bg-neutral-800/80 border-neutral-800 hover:border-indigo-500/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">🦉</span>
+                          <span className={`text-[9px] font-mono px-1 rounded border ${
+                            studyMode === 'socratic' ? 'bg-indigo-500 text-white border-indigo-400' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                          }`}>
+                            {studyMode === 'socratic' ? 'ACTIVE' : 'HOOK 3'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors">Socratic Tutor</p>
+                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
+                          {studyMode === 'socratic' ? 'Guides problem-solving' : 'Lead, don’t spoon-feed'}
+                        </p>
+                      </button>
+
+                      {/* Hook 4: Active Recall Flashcard Drill */}
+                      <button
+                        onClick={handleOpenFlashcards}
+                        className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left transition-all group"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">🗂</span>
+                          <span className="text-[9px] font-mono px-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">HOOK 4</span>
+                        </div>
+                        <p className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">Flashcard Drill</p>
+                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Active recall with XP &amp; streaks</p>
+                      </button>
+
+                      {/* Hook 5: Exam Readiness & Weak Spots (Span 2 cols) */}
+                      <button
+                        onClick={() => handleTriggerHook('weakspots')}
+                        className="col-span-2 p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-purple-500/50 rounded-xl text-left transition-all group flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">🎯</span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-semibold text-white group-hover:text-purple-300 transition-colors">Exam Readiness &amp; Weak Spots</p>
+                              <span className="text-[9px] font-mono px-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">HOOK 5</span>
+                            </div>
+                            <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Diagnoses your #1 conceptual blindspot with a 3-minute fix</p>
+                          </div>
+                        </div>
+                        <span className="text-purple-400 text-xs font-mono group-hover:translate-x-0.5 transition-transform">Run →</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Recent sessions */}
                   {sessions.length > 0 && (
                     <div className="w-full max-w-md">
@@ -1416,6 +1593,7 @@ export default function Home() {
                   msg={msg}
                   userEmail={user?.email}
                   defaultModel={selectedModel}
+                  onExplainSimpler={(text) => handleTriggerHook('eli5', `Explain this concept using the Feynman technique (ELI5) with an everyday real-world analogy:\n\n"${text.slice(0, 450)}"`)}
                 />
               ))}
 
@@ -1579,8 +1757,8 @@ export default function Home() {
                 </button>
               )}
 
-              {/* Quick AI Engine Selector & Quota Bar */}
-              <div className="flex items-center justify-between px-1.5 py-0.5 text-xs select-none">
+              {/* Quick AI Engine Selector & 5 Hooks Bar */}
+              <div className="flex items-center justify-between px-1.5 py-0.5 text-xs select-none gap-2">
                 <div className="flex items-center gap-1 overflow-x-auto py-0.5 retro-scroll">
                   <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider mr-0.5">Engine:</span>
                   {AVAILABLE_MODELS.map(m => {
@@ -1605,17 +1783,57 @@ export default function Home() {
                       </button>
                     )
                   })}
+
+                  <span className="text-neutral-700 mx-0.5">|</span>
+
+                  {/* Socratic Mode Toggle (Hook 3) */}
+                  <button
+                    type="button"
+                    onClick={() => setStudyMode(m => m === 'socratic' ? 'standard' : 'socratic')}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 ${
+                      studyMode === 'socratic'
+                        ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-xs'
+                        : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 border border-transparent'
+                    }`}
+                    title="Toggle Socratic Mode: Agui guides your problem-solving step by step instead of directly giving answers"
+                  >
+                    <span>🦉</span>
+                    <span>{studyMode === 'socratic' ? 'Socratic ON' : 'Socratic'}</span>
+                  </button>
+
+                  {/* Flashcards (Hook 4) */}
+                  <button
+                    type="button"
+                    onClick={handleOpenFlashcards}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono text-neutral-500 hover:text-amber-300 hover:bg-neutral-900 border border-transparent transition-all flex items-center gap-1"
+                    title="Open active recall flashcard drill"
+                  >
+                    <span>🗂</span>
+                    <span className="hidden sm:inline">Cards</span>
+                  </button>
+
+                  {/* Exam Cram Cheatsheet (Hook 1) */}
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerHook('cram')}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono text-neutral-500 hover:text-amber-300 hover:bg-neutral-900 border border-transparent transition-all flex items-center gap-1"
+                    title="Generate exam cram cheatsheet"
+                  >
+                    <span>⚡</span>
+                    <span className="hidden sm:inline">Cram</span>
+                  </button>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => setShowQuotaModal(true)}
-                  className="text-[10px] text-neutral-500 hover:text-amber-300 font-mono tabular-nums flex items-center gap-1 transition-colors flex-shrink-0 ml-2"
+                  className="text-[10px] text-neutral-500 hover:text-amber-300 font-mono tabular-nums flex items-center gap-1 transition-colors flex-shrink-0 ml-1"
                   title="Click to view daily resource usage"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full inline-block ${
                     dailyUsage.count >= 45 ? 'bg-red-400' : dailyUsage.count >= 30 ? 'bg-amber-400' : 'bg-emerald-400'
                   }`} />
-                  <span>{Math.max(0, 50 - dailyUsage.count)}/50 queries</span>
+                  <span>{Math.max(0, 50 - dailyUsage.count)} left</span>
                 </button>
               </div>
 
@@ -1782,6 +2000,18 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ── Active Recall Flashcard Drill Modal (Hook 4) ── */}
+      <FlashcardModal
+        isOpen={showFlashcardModal}
+        onClose={() => setShowFlashcardModal(false)}
+        cards={flashcards}
+        isLoading={loadingFlashcards}
+        onGainXP={(xp) => {
+          setMascotMood('celebrating')
+          setTimeout(() => setMascotMood('idle'), 2500)
+        }}
+      />
     </div>
   )
 }
