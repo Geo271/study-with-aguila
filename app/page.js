@@ -418,6 +418,9 @@ export default function Home() {
       setUploadTray(prev => prev.map((p, idx) => idx === i ? { ...p, state: result.success ? 'done' : 'error' } : p))
       if (result.success) {
         docIds.push(result.documentId)
+        if (result.topicTitle) {
+          session.title = result.topicTitle
+        }
         if (i === 0) firstExtractedText = result.extractedText || ''
       }
     }
@@ -427,7 +430,7 @@ export default function Home() {
     setMascotMood('idle')
     setMessages([{
       role: 'ai',
-      content: `Session **"${autoTitle}"** is ready. Processed ${docIds.length} file${docIds.length > 1 ? 's' : ''}. Ask me anything or I'll generate a quiz automatically.`,
+      content: `Session **"${session.title || autoTitle}"** is ready. Processed ${docIds.length} file${docIds.length > 1 ? 's' : ''}. Ask me anything or I'll generate a quiz automatically.`,
     }])
 
     await refreshSessions()
@@ -515,6 +518,10 @@ const handleSend = async (e) => {
     setMascotMood('idle')
 
     if (result.success) {
+      if (result.updatedTitle) {
+        setCurrentSession(s => s ? { ...s, title: result.updatedTitle } : s)
+        refreshSessions()
+      }
       if (result.quizTrigger) {
         setMessages(prev => [...prev, { role: 'ai', content: result.answer, isNew: true }])
         setIsGeneratingQuiz(true)

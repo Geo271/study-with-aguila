@@ -61,6 +61,55 @@
   }
 }
 
+/* ── Sub-component Living Micro-animations ── */
+@keyframes aguila-blink {
+  0%, 86%, 100% {
+    transform: scaleY(1);
+  }
+  90% {
+    transform: scaleY(0.08);
+  }
+  94% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes aguila-crest {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-3.5deg);
+  }
+}
+
+@keyframes aguila-wing-sway {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+
+@keyframes aguila-tail {
+  0%, 100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes aguila-talk {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
 @keyframes aguila-particle {
   0% {
     opacity: 0;
@@ -144,8 +193,8 @@
 
 /* Pointer fine hover gating */
 @media (hover: hover) and (pointer: fine) {
-  .aguila-clickable:hover .aguila-sprite {
-    filter: drop-shadow(0 6px 16px rgba(245, 158, 11, 0.3));
+  .aguila-clickable:hover svg {
+    filter: drop-shadow(0 6px 18px rgba(245, 158, 11, 0.35));
     transform: translateY(-1.5px) scale(1.02);
   }
 }

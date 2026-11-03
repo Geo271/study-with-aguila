@@ -5,6 +5,7 @@ import { extractText, getDocumentProxy } from 'unpdf'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { Buffer } from 'buffer'
 import mammoth from 'mammoth'
+import { generateTopicTitle } from './chat'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -19,7 +20,7 @@ function chunkText(text, chunkSize = 1000, overlap = 200) {
   return chunks
 }
 
-// ✅ NEW — creates a named study session
+// ✅ Creates a named study session
 export async function createSession(userId, title = 'New Session') {
   const { data, error } = await supabase
     .from('study_sessions')
@@ -30,7 +31,7 @@ export async function createSession(userId, title = 'New Session') {
   return { success: true, session: data }
 }
 
-// ✅ UPDATED — now accepts sessionId and links PDF to session
+// ✅ Accepts sessionId and links PDF to session with auto-topic renaming
 export async function processPDF(formData, userId, sessionId) {
   try {
     const file = formData.get('file')
@@ -45,16 +46,14 @@ export async function processPDF(formData, userId, sessionId) {
       .storage.from('pdfs').upload(fileName, file)
     if (storageError) throw new Error(`Storage error: ${storageError.message}`)
 
-    // 🌟 SMART EXTRACTION: Check the file extension and use the right reader!
+    // Extract text depending on file format
     let extractedText = ''
     
     if (file.name.toLowerCase().endsWith('.docx')) {
-      // Use Mammoth for Word Documents
       const buffer = Buffer.from(arrayBuffer)
       const result = await mammoth.extractRawText({ buffer })
       extractedText = result.value
     } else {
-      // Use unpdf for standard PDFs
       const pdf = await getDocumentProxy(uint8Array)
       const extractResult = await extractText(pdf, { mergePages: true })
       extractedText = extractResult.text
@@ -72,7 +71,6 @@ export async function processPDF(formData, userId, sessionId) {
       .single()
     if (docError) throw new Error(`Database error: ${docError.message}`)
 
-    // Link to session if one was provided (lounge uploads pass null — that is fine)
     if (sessionId) {
       await supabase.from('session_documents').insert([{
         session_id: sessionId,
@@ -84,9 +82,7 @@ export async function processPDF(formData, userId, sessionId) {
     const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
     const chunkRecords = []
 
-   for (let i = 0; i < chunks.length; i++) {
-      
-      // 🛑 THE THROTTLE: Pause for 1 second (1000ms) before each request
+    for (let i = 0; i < chunks.length; i++) {
       await delay(1000);
 
       const result = await embeddingModel.embedContent({
@@ -106,7 +102,26 @@ export async function processPDF(formData, userId, sessionId) {
       .from('document_chunks').insert(chunkRecords)
     if (chunkDbError) throw new Error(`Vector DB error: ${chunkDbError.message}`)
 
-    return { success: true, documentId: docData.id, totalChunks: chunks.length }
+    // Auto-rename session context based on extracted material topic
+    let topicTitle = null
+    if (sessionId && extractedText) {
+      try {
+        topicTitle = await generateTopicTitle(`${file.name}\n${extractedText.slice(0, 1000)}`)
+        if (topicTitle) {
+          await supabase.from('study_sessions').update({ title: topicTitle }).eq('id', sessionId)
+        }
+      } catch (titleErr) {
+        console.warn('Auto-rename session failed in processPDF:', titleErr.message)
+      }
+    }
+
+    return { 
+      success: true, 
+      documentId: docData.id, 
+      totalChunks: chunks.length,
+      extractedText,
+      topicTitle,
+    }
   } catch (error) {
     console.error('PDF Processing Error:', error)
     return { success: false, error: error.message }
@@ -123,52 +138,57 @@ export async function processOCR(formData, userId, sessionId) {
       throw new Error('Please upload a JPG, PNG, or WEBP image.')
     }
  
-    // Convert image to base64 for Gemini Vision
     const arrayBuffer = await file.arrayBuffer()
     const base64Data = Buffer.from(arrayBuffer).toString('base64')
  
-    // Use Gemini Vision to extract text (handles handwriting perfectly)
     const visionModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
-    const visionResult = await visionModel.generateContent([
+    const ocrResult = await visionModel.generateContent([
       {
         inlineData: {
           mimeType: file.type,
-          data: base64Data,
-        },
+          data: base64Data
+        }
       },
-      `Extract ALL text from this image with complete accuracy.
-If the text is handwritten, transcribe it exactly as written, preserving:
-- All headings and subheadings
-- Bullet points and numbered lists  
-- Diagrams with their labels
-- Any underlined or circled key terms
-- Tables and their contents
-Output ONLY the extracted text. No commentary, no "Here is the text:", just the content itself.`,
+      {
+        text: `Transcribe all handwritten or printed text from this image as accurately as possible. 
+Preserve the layout, headings, bullet points, and numbered lists where possible.
+Output ONLY the transcribed text. Do not add any introductory or concluding comments.`
+      }
     ])
  
-    const extractedText = visionResult.response.text()
-    if (!extractedText.trim()) throw new Error('No text could be detected in this image.')
+    const extractedText = ocrResult.response.text().trim()
+    if (!extractedText) throw new Error('No text could be extracted from this image.')
  
-    // Save as a document record (no physical file stored for OCR images)
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+    const fileName = `${Date.now()}-${safeName}`
+ 
+    const { data: storageData, error: storageError } = await supabase
+      .storage
+      .from('pdfs')
+      .upload(fileName, file)
+ 
+    if (storageError) throw new Error(`Storage upload error: ${storageError.message}`)
+ 
     const { data: docData, error: docError } = await supabase
       .from('documents')
       .insert([{
-        file_name: `[Scan] ${file.name}`,
-        file_path: `ocr/${Date.now()}-${safeName}`,
-        subject: 'OCR Scan',
+        file_name: `[OCR] ${file.name}`,
+        file_path: storageData.path,
+        subject: 'General',
         user_id: userId,
       }])
-      .select().single()
+      .select()
+      .single()
+ 
     if (docError) throw new Error(`Database error: ${docError.message}`)
  
-    // Link to the session
-    await supabase.from('session_documents').insert([{
-      session_id: sessionId,
-      document_id: docData.id,
-    }])
+    if (sessionId) {
+      await supabase.from('session_documents').insert([{
+        session_id: sessionId,
+        document_id: docData.id,
+      }])
+    }
  
-    // Chunk and embed exactly like a normal PDF
     const chunks = chunkText(extractedText)
     const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
     const chunkRecords = []
@@ -189,6 +209,19 @@ Output ONLY the extracted text. No commentary, no "Here is the text:", just the 
  
     const { error: chunkDbError } = await supabase.from('document_chunks').insert(chunkRecords)
     if (chunkDbError) throw new Error(`Vector DB error: ${chunkDbError.message}`)
+
+    // Auto-rename session context based on transcribed notes topic
+    let topicTitle = null
+    if (sessionId && extractedText) {
+      try {
+        topicTitle = await generateTopicTitle(extractedText.slice(0, 1000))
+        if (topicTitle) {
+          await supabase.from('study_sessions').update({ title: topicTitle }).eq('id', sessionId)
+        }
+      } catch (titleErr) {
+        console.warn('Auto-rename session failed in processOCR:', titleErr.message)
+      }
+    }
  
     return {
       success: true,
@@ -196,14 +229,13 @@ Output ONLY the extracted text. No commentary, no "Here is the text:", just the 
       totalChunks: chunks.length,
       extractedText,
       charCount: extractedText.length,
+      topicTitle,
     }
   } catch (error) {
     console.error('OCR Error:', error)
     return { success: false, error: error.message }
   }
 }
-
-// Add this to the very bottom of app/actions/pdf.js
 
 export async function uploadChatFile(formData) {
   try {
@@ -213,7 +245,6 @@ export async function uploadChatFile(formData) {
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
     const fileName = `chat/${Date.now()}-${safeName}`
 
-    // Upload using supabaseAdmin (bypasses RLS security blocks)
     const { error } = await supabase.storage.from('pdfs').upload(fileName, file)
     if (error) throw new Error(error.message)
 
