@@ -3,63 +3,62 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
 
-const FACTS = [
-  "The Philippine Eagle is one of the world's largest, most powerful eagles.",
-  "Spaced repetition improves long-term recall by up to 200%.",
-  "The Feynman Technique: explain it simply to truly understand it.",
-  "Sleep consolidates memories — review notes before you rest.",
-  "Active recall beats passive re-reading every time.",
-  "The Pomodoro method trains your brain to focus on demand.",
-  "Teaching others is the fastest way to master a subject.",
-  "Philippine Eagles mate for life and are fiercely loyal.",
-  "Breaking a big topic into chunks makes it far less overwhelming.",
-  "Your brain processes information better in shorter, focused sessions.",
+const GUIDANCE_STEPS = [
+  {
+    badge: 'Guide Step 1',
+    text: "Upload your PDF notes or syllabus below — I'll index key concepts and prepare practice quizzes for you.",
+  },
+  {
+    badge: 'Guide Step 2',
+    text: "Ask me any tough concept in the chat bar. I explain step-by-step and cite directly from your material.",
+  },
+  {
+    badge: 'Guide Step 3',
+    text: "Ready to test your memory? Click 'Start Quiz' to run active recall practice questions.",
+  },
+  {
+    badge: 'Study Tip',
+    text: "Use spaced repetition: review your uploaded notes in 20-minute focused blocks for 200% better retention.",
+  },
+  {
+    badge: 'Student Lounge',
+    text: "Need group accountability? Head over to the Student Lounge to study together in live voice rooms.",
+  },
+]
+
+const QUICK_PROMPTS = [
+  { label: 'Summarize key concepts', prompt: 'Summarize the most important concepts and definitions from my notes.' },
+  { label: 'Generate practice quiz', prompt: 'Create 5 practice quiz questions based on the key topics in my uploaded notes.' },
+  { label: 'Explain like a beginner', prompt: 'Explain the most complex topic in my material in simple, plain English with an analogy.' },
 ]
 
 const MOOD_MESSAGES = {
   idle: [
-    "Drop your notes and let's get to work.",
-    "Ready to help you ace your exams.",
-    "Upload a PDF and I'll turn it into a study guide.",
-    "What are we mastering today?",
-    "Ask me anything about your notes.",
+    "I'm your study companion. What are we mastering today?",
+    "Upload a PDF or scan notes to begin your study session.",
+    "Ready to turn complex lectures into clear takeaways.",
   ],
   studying: [
     "Reading through your notes carefully...",
-    "Processing your material — this looks interesting.",
-    "Finding the key concepts in your notes.",
-    "Analyzing content for the best study approach.",
+    "Extracting key concepts and building vector embeddings...",
+    "Analyzing your study material for the best breakdown...",
   ],
   celebrating: [
-    "Outstanding! You're absolutely crushing it.",
-    "Excellent score! Keep this momentum going.",
-    "That's the spirit! Real progress right there.",
-    "Top marks. You've clearly put in the work.",
+    "Outstanding progress! You're building real mastery.",
+    "Excellent work! Your consistency is paying off.",
+    "Keep this focus going — you're fully prepared.",
   ],
   thinking: [
-    "Searching your notes for the best answer...",
-    "Connecting the concepts from your material...",
+    "Searching your uploaded notes for the exact reference...",
+    "Synthesizing key insights from your material...",
     "Formulating a clear academic explanation...",
   ],
   timer: [
-    "Focus mode activated. No distractions.",
-    "Your session is running. Stay in the zone.",
-    "Concentration is a skill. Build it now.",
-    "Break incoming. You earned it.",
+    "Deep focus session active. Zero distractions.",
+    "Stay in the flow — high cognitive retention in progress.",
+    "Pacing your brain for peak exam performance.",
   ],
 }
-
-const INTERACTION_QUOTES = [
-  "*Chirp!* Eagle focus locked on your syllabus!",
-  "Petting Aguila grants +5 study momentum! ⚡",
-  "Active recall + spaced repetition = unstoppable! 📚",
-  "Take a deep breath, scholar. You've got this! 🎯",
-  "Zero distractions. Full comprehension mode. 🦅",
-  "1% better every single day. Let's conquer it!",
-  "Wings spread, sharp mind. Let's fly! ✨",
-]
-
-const PARTICLE_EMOJIS = ['+1 Focus', '⚡', '✨', '🦅', '🎯', '📚', '💡', '🔥']
 
 const MASCOT_IMAGES = {
   idle: '/mascot-idle.png',
@@ -70,10 +69,10 @@ const MASCOT_IMAGES = {
 }
 
 const SIZE_MAP = {
-  sm: { width: 72, shadow: 'w-14' },
-  md: { width: 104, shadow: 'w-20' },
-  lg: { width: 144, shadow: 'w-28' },
-  xl: { width: 180, shadow: 'w-36' },
+  sm: { width: 76, shadow: 'w-16', aura: 'w-24 h-24' },
+  md: { width: 108, shadow: 'w-24', aura: 'w-32 h-32' },
+  lg: { width: 148, shadow: 'w-32', aura: 'w-44 h-44' },
+  xl: { width: 184, shadow: 'w-40', aura: 'w-52 h-52' },
 }
 
 export default function AguiMascot({
@@ -81,188 +80,161 @@ export default function AguiMascot({
   size = 'md',
   showBubble = true,
   customMessage = '',
+  guidanceText = '',
+  guidanceBadge = '',
+  onQuickPrompt = null,
   animationDelay = '0s',
 }) {
-  const [msgIndex, setMsgIndex] = useState(0)
-  const [factIndex, setFactIndex] = useState(0)
-  const [prevMood, setPrevMood] = useState(mood)
-  const [isSquishing, setIsSquishing] = useState(false)
+  const [guideIndex, setGuideIndex] = useState(0)
+  const [isNodding, setIsNodding] = useState(false)
   const [particles, setParticles] = useState([])
-  const [clickCount, setClickCount] = useState(0)
-  const [isHyperCelebration, setIsHyperCelebration] = useState(false)
-  const [interactiveQuote, setInteractiveQuote] = useState(null)
   const [bubbleKey, setBubbleKey] = useState(0)
-
-  if (mood !== prevMood) {
-    setPrevMood(mood)
-    setMsgIndex(0)
-    setInteractiveQuote(null)
-  }
+  const [interactiveMsg, setInteractiveMsg] = useState(null)
 
   const timerRef = useRef(null)
-  const factTimerRef = useRef(null)
-  const squishTimeoutRef = useRef(null)
-  const comboResetTimeoutRef = useRef(null)
-  const hyperTimeoutRef = useRef(null)
+  const nodTimeoutRef = useRef(null)
 
   const messages = MOOD_MESSAGES[mood] || MOOD_MESSAGES.idle
-  const currentMood = isHyperCelebration ? 'celebrating' : mood
-  const mascotSrc = MASCOT_IMAGES[currentMood] || MASCOT_IMAGES.idle
+  const mascotSrc = MASCOT_IMAGES[mood] || MASCOT_IMAGES.idle
   const sizeConfig = SIZE_MAP[size] || SIZE_MAP.md
 
-  // Automatic speech bubble rotation
+  // Rotate guidance steps smoothly every 8 seconds when idle and no custom message is present
   useEffect(() => {
+    if (customMessage || guidanceText) return
+
     timerRef.current = setInterval(() => {
-      setMsgIndex(i => (i + 1) % messages.length)
-      setInteractiveQuote(null)
+      setGuideIndex(i => (i + 1) % GUIDANCE_STEPS.length)
+      setInteractiveMsg(null)
       setBubbleKey(k => k + 1)
-    }, 6000)
+    }, 8000)
+
     return () => clearInterval(timerRef.current)
-  }, [messages.length])
+  }, [customMessage, guidanceText])
 
-  // Trivia facts rotation
-  useEffect(() => {
-    factTimerRef.current = setInterval(() => {
-      setFactIndex(i => (i + 1) % FACTS.length)
-    }, 12000)
-    return () => clearInterval(factTimerRef.current)
-  }, [])
-
-  // Cleanup timeouts on unmount
+  // Cleanup timeout
   useEffect(() => {
     return () => {
-      if (squishTimeoutRef.current) clearTimeout(squishTimeoutRef.current)
-      if (comboResetTimeoutRef.current) clearTimeout(comboResetTimeoutRef.current)
-      if (hyperTimeoutRef.current) clearTimeout(hyperTimeoutRef.current)
+      if (nodTimeoutRef.current) clearTimeout(nodTimeoutRef.current)
     }
   }, [])
 
-  // Handle interactive clicks on Aguila
+  // Acknowledging thoughtful nod when clicked (zero cartoon bouncing)
   const handleMascotInteract = useCallback(() => {
-    // Retrigger squish animation
-    setIsSquishing(false)
-    if (squishTimeoutRef.current) clearTimeout(squishTimeoutRef.current)
-    // Small timeout to allow re-render of animation class
+    setIsNodding(false)
+    if (nodTimeoutRef.current) clearTimeout(nodTimeoutRef.current)
+
     setTimeout(() => {
-      setIsSquishing(true)
-      squishTimeoutRef.current = setTimeout(() => setIsSquishing(false), 320)
+      setIsNodding(true)
+      nodTimeoutRef.current = setTimeout(() => setIsNodding(false), 360)
     }, 10)
 
-    // Spawn floating particle
-    const newParticleId = Date.now() + Math.random()
-    const randomEmoji = PARTICLE_EMOJIS[Math.floor(Math.random() * PARTICLE_EMOJIS.length)]
-    const randomTx = Math.floor(Math.random() * 40) - 20 // -20px to +20px
+    // Spawn subtle ambient motivation spark
+    const newId = Date.now() + Math.random()
+    const sparkItems = ['💡 Key Concept', '⚡ Focus Locked', '🦅 Eye on Goal', '🎯 Active Recall']
+    const spark = sparkItems[Math.floor(Math.random() * sparkItems.length)]
+    const randomTx = Math.floor(Math.random() * 30) - 15
 
     setParticles(prev => [
-      ...prev.slice(-6), // Keep max 7 particles
-      { id: newParticleId, emoji: randomEmoji, tx: `${randomTx}px` }
+      ...prev.slice(-3),
+      { id: newId, text: spark, tx: `${randomTx}px` }
     ])
 
-    // Cleanup particle after 850ms
     setTimeout(() => {
-      setParticles(prev => prev.filter(p => p.id !== newParticleId))
+      setParticles(prev => prev.filter(p => p.id !== newId))
     }, 850)
 
-    // Combo streak calculation
-    setClickCount(c => {
-      const nextCount = c + 1
-      if (comboResetTimeoutRef.current) clearTimeout(comboResetTimeoutRef.current)
-      comboResetTimeoutRef.current = setTimeout(() => setClickCount(0), 3000)
-
-      if (nextCount >= 5) {
-        setIsHyperCelebration(true)
-        setInteractiveQuote("🌟 ULTRA FOCUS COMBO! Aguila is cheering you on!")
-        setBubbleKey(k => k + 1)
-        if (hyperTimeoutRef.current) clearTimeout(hyperTimeoutRef.current)
-        hyperTimeoutRef.current = setTimeout(() => {
-          setIsHyperCelebration(false)
-          setInteractiveQuote(null)
-          setClickCount(0)
-        }, 4000)
-      } else {
-        const quote = INTERACTION_QUOTES[Math.floor(Math.random() * INTERACTION_QUOTES.length)]
-        setInteractiveQuote(quote)
-        setBubbleKey(k => k + 1)
-      }
-
-      return nextCount
-    })
+    // Cycle to next guidance tip or responsive study quip
+    setGuideIndex(i => (i + 1) % GUIDANCE_STEPS.length)
+    setInteractiveMsg("Click any study tool below or ask me a question in chat — I'm right here to guide you.")
+    setBubbleKey(k => k + 1)
   }, [])
 
-  // Cycle bubble manually on bubble click
-  const handleBubbleClick = () => {
-    setMsgIndex(i => (i + 1) % messages.length)
-    setInteractiveQuote(null)
+  const handleBubbleCycle = () => {
+    setGuideIndex(i => (i + 1) % GUIDANCE_STEPS.length)
+    setInteractiveMsg(null)
     setBubbleKey(k => k + 1)
   }
 
-  const displayMsg = interactiveQuote || customMessage || messages[msgIndex]
-  const isCelebrating = currentMood === 'celebrating'
-  const isThinking = currentMood === 'thinking'
-  const isTimer = currentMood === 'timer'
-  const isStudying = currentMood === 'studying'
+  // Determine current active message and badge
+  const activeGuide = GUIDANCE_STEPS[guideIndex]
+  const currentBadge = guidanceBadge || (guidanceText ? 'Action Guide' : (interactiveMsg ? 'Agui Study Tip' : (customMessage ? 'Status' : activeGuide.badge)))
+  const displayMsg = guidanceText || interactiveMsg || customMessage || (mood === 'idle' ? activeGuide.text : messages[0])
 
-  // Pick the right motion class
-  let motionClass = 'animate-aguila-bob'
-  if (isCelebrating) {
-    motionClass = 'animate-aguila-celebrate'
-  } else if (isStudying || isThinking) {
+  const isThinking = mood === 'thinking'
+  const isStudying = mood === 'studying'
+  const isTimer = mood === 'timer'
+
+  // Lifelike motion: gentle breathing stance (no bouncing!)
+  let motionClass = 'animate-aguila-alive'
+  if (isStudying || isThinking) {
     motionClass = 'animate-aguila-studying'
   }
 
   return (
-    <div className="flex flex-col items-center select-none relative">
-      {/* Speech bubble */}
+    <div className="flex flex-col items-center select-none relative max-w-sm mx-auto">
+      {/* Speech bubble / Intelligent Study Guide */}
       {showBubble && (
         <div 
           key={bubbleKey}
-          onClick={handleBubbleClick}
-          title="Click to cycle study wisdom"
-          className="relative mb-3 max-w-[250px] cursor-pointer group animate-aguila-bubble focus:outline-none"
+          onClick={handleBubbleCycle}
+          title="Click to cycle study guide"
+          className="relative mb-3.5 max-w-[290px] sm:max-w-[320px] cursor-pointer group animate-aguila-bubble focus:outline-none z-20"
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBubbleClick() } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBubbleCycle() } }}
         >
-          <div className="bg-neutral-900/95 border border-neutral-700/80 group-hover:border-amber-500/50 px-3.5 py-2 rounded-xl shadow-xl shadow-black/40 text-center backdrop-blur-md transition-colors duration-200">
-            <p className="text-xs font-medium text-neutral-200 leading-snug">
+          <div className="bg-neutral-900/90 border border-neutral-800 group-hover:border-amber-500/40 px-4 py-2.5 rounded-2xl shadow-xl shadow-black/50 text-center backdrop-blur-md transition-colors duration-200">
+            {/* Guide badge */}
+            <div className="flex items-center justify-center gap-1.5 mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400 font-mono">
+                {currentBadge}
+              </span>
+            </div>
+
+            <p className="text-xs font-medium text-neutral-200 leading-relaxed">
               {displayMsg}
             </p>
+
             {isThinking && (
-              <span className="inline-flex gap-1 items-center justify-center mt-1.5">
+              <span className="inline-flex gap-1.5 items-center justify-center mt-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 opacity-75" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 opacity-50" />
               </span>
             )}
-            <span className="block text-[9px] text-neutral-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity font-mono">
-              click for next tip ↻
-            </span>
+
+            <div className="flex items-center justify-center gap-1 text-[9px] text-neutral-500 mt-1.5 font-mono opacity-60 group-hover:opacity-100 transition-opacity">
+              <span>click for next guide step</span>
+              <span>➔</span>
+            </div>
           </div>
+
           {/* Speech bubble pointer */}
-          <div className="w-2.5 h-2.5 bg-neutral-900/95 border-r border-b border-neutral-700/80 group-hover:border-amber-500/50 transform rotate-45 mx-auto -mt-1.5 transition-colors duration-200" />
+          <div className="w-2.5 h-2.5 bg-neutral-900/90 border-r border-b border-neutral-800 group-hover:border-amber-500/40 transform rotate-45 mx-auto -mt-1.5 transition-colors duration-200" />
         </div>
       )}
 
-      {/* Floating Interactive Particles */}
-      <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-visible z-20">
+      {/* Floating Guidance Sparks (subtle, non-jarring) */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-visible z-30">
         {particles.map(p => (
           <span
             key={p.id}
-            className="absolute text-xs font-bold text-amber-300 font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] animate-aguila-particle px-1.5 py-0.5 rounded-full bg-neutral-900/80 border border-amber-500/30"
+            className="absolute text-[11px] font-semibold text-amber-300 font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] animate-aguila-particle px-2 py-0.5 rounded-full bg-neutral-900/90 border border-amber-500/40"
             style={{ '--p-tx': p.tx }}
           >
-            {p.emoji}
+            {p.text}
           </span>
         ))}
       </div>
 
-      {/* Mascot Graphic container with interactive click, idle bobbing, and drop shadow */}
+      {/* Mascot Graphic with Ambient Backlight & Lifelike Idle Motion */}
       <div 
-        className="relative flex flex-col items-center justify-center cursor-pointer group aguila-clickable focus:outline-none"
+        className="relative flex flex-col items-center justify-center cursor-pointer aguila-clickable focus:outline-none"
         onClick={handleMascotInteract}
         role="button"
         tabIndex={0}
-        aria-label="Interact with Aguila mascot - click to pat or motivate"
+        aria-label="Agui the study guide mascot - click for a study tip"
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -271,18 +243,24 @@ export default function AguiMascot({
         }}
         style={{ animationDelay }}
       >
-        {/* Animated mascot sprite */}
+        {/* Soft Ambient Radial Backlight - Blends smoothly into the dark background */}
+        <div 
+          className={`absolute ${sizeConfig.aura} rounded-full bg-radial from-amber-500/10 via-amber-500/5 to-transparent blur-xl pointer-events-none animate-aguila-aura`}
+          style={{ top: '10%' }}
+        />
+
+        {/* Mascot Sprite with Organic Breathing Poise (NO Bouncing) */}
         <div 
           className={`relative z-10 transition-transform ${motionClass} ${
-            isSquishing ? 'animate-aguila-squash' : ''
+            isNodding ? 'animate-aguila-nod' : ''
           }`}
         >
           <Image
             src={mascotSrc}
-            alt={`Aguila mascot - ${currentMood}`}
+            alt={`Aguila mascot - ${mood}`}
             width={sizeConfig.width}
             height={sizeConfig.width}
-            className="aguila-sprite object-contain drop-shadow-md select-none pointer-events-none transition-filter duration-200"
+            className="aguila-sprite object-contain drop-shadow-md select-none pointer-events-none transition-all duration-300"
             style={{
               imageRendering: 'pixelated',
               width: `${sizeConfig.width}px`,
@@ -292,33 +270,38 @@ export default function AguiMascot({
             unoptimized
           />
 
-          {/* Status badge when timer is active */}
+          {/* Active study status indicator */}
           {isTimer && (
             <span className="absolute bottom-1 right-1 flex h-3.5 w-3.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500 border-2 border-neutral-950" />
             </span>
           )}
-
-          {/* Combo badge when interacting quickly */}
-          {clickCount > 1 && !isHyperCelebration && (
-            <span className="absolute -top-1 -right-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-neutral-950 font-mono shadow-md animate-bounce">
-              x{clickCount}
-            </span>
-          )}
         </div>
 
-        {/* Ambient Ground Shadow that expands and contracts with breathing float */}
+        {/* Realistic Ground Contact Shadow */}
         <div 
-          className={`${sizeConfig.shadow} h-3 bg-black/45 rounded-[50%] blur-[2px] mt-[-6px] animate-aguila-shadow transition-all`}
+          className={`${sizeConfig.shadow} h-3 bg-neutral-950/70 rounded-[50%] blur-[2px] mt-[-4px] animate-aguila-shadow transition-all`}
         />
       </div>
 
-      {/* Trivia facts under idle mascot */}
-      {mood === 'idle' && (
-        <p className="text-[11px] text-neutral-500 italic text-center max-w-[220px] leading-relaxed mt-2.5">
-          &ldquo;{FACTS[factIndex]}&rdquo;
-        </p>
+      {/* Clickable Quick Guidance Starter Chips (if provided) */}
+      {onQuickPrompt && (
+        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 max-w-sm px-2">
+          {QUICK_PROMPTS.map((item, idx) => (
+            <button
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation()
+                onQuickPrompt(item.prompt)
+              }}
+              className="text-[11px] font-medium text-neutral-400 hover:text-amber-300 bg-neutral-900/60 hover:bg-neutral-800 border border-neutral-800 hover:border-amber-500/30 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1"
+            >
+              <span>{item.label}</span>
+              <span className="text-[10px] text-neutral-600">➔</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )

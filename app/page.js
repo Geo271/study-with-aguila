@@ -259,6 +259,7 @@ export default function Home() {
 
   // Mascot
   const [mascotMood, setMascotMood] = useState('idle')
+  const [hoverGuidance, setHoverGuidance] = useState(null)
 
   // UI
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -885,7 +886,17 @@ const handleSend = async (e) => {
               {/* ── Welcome / empty state ─────────────────────────── */}
               {!currentSession && (
                 <div className="flex flex-col items-center justify-center min-h-full py-8 px-4 text-center">
-                  <AguiMascot mood={mascotMood} size="lg" showBubble={true}/>
+                  <AguiMascot 
+                    mood={mascotMood} 
+                    size="lg" 
+                    showBubble={true}
+                    guidanceText={hoverGuidance?.text}
+                    guidanceBadge={hoverGuidance?.badge}
+                    onQuickPrompt={(prompt) => {
+                      setInput(prompt)
+                      inputRef.current?.focus()
+                    }}
+                  />
 
                   {/* 🌟 Editable Greeting */}
                   <div className="flex items-center justify-center gap-2 mt-6 mb-1">
@@ -931,6 +942,8 @@ const handleSend = async (e) => {
                     {/* 1. Upload PDF Button */}
                     <button
                       onClick={() => fileInputRef.current?.click()}
+                      onMouseEnter={() => setHoverGuidance({ badge: 'Upload PDF', text: "Drop your PDF lecture notes or textbook — I'll index chunks and create quizzes!" })}
+                      onMouseLeave={() => setHoverGuidance(null)}
                       className="flex items-start gap-3 p-4 bg-neutral-900/90 border border-neutral-800 hover:border-amber-500/40 rounded-2xl text-left transition-all duration-200 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
                     >
                       <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-500/20 transition-colors">
@@ -945,6 +958,8 @@ const handleSend = async (e) => {
                     {/* 2. Scan Handwritten Notes Button */}
                     <button
                       onClick={() => imageInputRef.current?.click()}
+                      onMouseEnter={() => setHoverGuidance({ badge: 'Vision OCR', text: "Upload a picture of handwritten notebook pages — Gemini Vision transcribes it!" })}
+                      onMouseLeave={() => setHoverGuidance(null)}
                       className="flex items-start gap-3 p-4 bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/40 rounded-2xl text-left transition-all duration-200 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
                     >
                       <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors">
@@ -959,6 +974,8 @@ const handleSend = async (e) => {
                     {/* 3. 🌟 Lounge Banner (Spans 2 columns, sits at the bottom) */}
                     <button
                       onClick={() => router.push('/lounge')}
+                      onMouseEnter={() => setHoverGuidance({ badge: 'Student Lounge', text: "Join a collaborative live study room with real-time voice, Pomodoro, and XP!" })}
+                      onMouseLeave={() => setHoverGuidance(null)}
                       className="sm:col-span-2 flex items-center justify-between p-4 bg-neutral-900/90 border border-neutral-800 hover:border-indigo-500/40 rounded-2xl text-left transition-all duration-200 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
                     >
                       <div className="flex items-center gap-3">

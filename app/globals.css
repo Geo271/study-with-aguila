@@ -2,42 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Aguila Mascot Animation Keyframes (Hardware Accelerated GPU) ──────── */
-@keyframes aguila-bob {
+/* ── Aguila Mascot Lifelike Presence (Zero Bouncing, Organic & Grounded) ── */
+@keyframes aguila-alive {
   0%, 100% {
-    transform: translateY(0px);
+    transform: translateY(0px) rotate(0deg);
   }
-  50% {
-    transform: translateY(-5px);
+  33% {
+    transform: translateY(-2.5px) rotate(-0.5deg);
+  }
+  66% {
+    transform: translateY(-1px) rotate(0.5deg);
   }
 }
 
-@keyframes aguila-shadow {
+@keyframes aguila-aura {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes aguila-shadow-alive {
   0%, 100% {
     transform: scale(1);
-    opacity: 0.35;
+    opacity: 0.4;
   }
   50% {
-    transform: scale(0.82);
-    opacity: 0.18;
+    transform: scale(0.9);
+    opacity: 0.25;
   }
 }
 
-@keyframes aguila-celebrate {
-  0%, 100% {
-    transform: translateY(0) scale(1) rotate(0deg);
+@keyframes aguila-nod {
+  0% {
+    transform: translateY(0) rotate(0deg);
   }
-  20% {
-    transform: translateY(-12px) scale(1.05, 0.95) rotate(-3deg);
+  30% {
+    transform: translateY(2px) rotate(0.8deg);
   }
-  40% {
-    transform: translateY(0) scale(0.95, 1.05) rotate(0deg);
+  65% {
+    transform: translateY(-1px) rotate(-0.4deg);
   }
-  60% {
-    transform: translateY(-8px) scale(1.03, 0.97) rotate(3deg);
-  }
-  80% {
-    transform: translateY(0) scale(0.98, 1.02) rotate(0deg);
+  100% {
+    transform: translateY(0) rotate(0deg);
   }
 }
 
@@ -46,50 +57,32 @@
     transform: translateY(0px) rotate(0deg);
   }
   50% {
-    transform: translateY(-2px) rotate(1deg);
-  }
-}
-
-@keyframes aguila-squash {
-  0% {
-    transform: scale(1, 1);
-  }
-  25% {
-    transform: scale(1.15, 0.85);
-  }
-  50% {
-    transform: scale(0.92, 1.08);
-  }
-  75% {
-    transform: scale(1.04, 0.96);
-  }
-  100% {
-    transform: scale(1, 1);
+    transform: translateY(-1.5px) rotate(0.6deg);
   }
 }
 
 @keyframes aguila-particle {
   0% {
     opacity: 0;
-    transform: translate(0, 0) scale(0.6);
+    transform: translate(0, 0) scale(0.7);
   }
-  20% {
+  25% {
     opacity: 1;
-    transform: translate(var(--p-tx, 0px), -10px) scale(1.1);
+    transform: translate(var(--p-tx, 0px), -10px) scale(1);
   }
   80% {
     opacity: 0.9;
   }
   100% {
     opacity: 0;
-    transform: translate(var(--p-tx, 0px), -36px) scale(0.9);
+    transform: translate(var(--p-tx, 0px), -32px) scale(0.85);
   }
 }
 
 @keyframes aguila-bubble-in {
   0% {
     opacity: 0;
-    transform: translateY(6px) scale(0.96);
+    transform: translateY(4px) scale(0.97);
   }
   100% {
     opacity: 1;
@@ -97,28 +90,28 @@
   }
 }
 
-.animate-aguila-bob {
-  animation: aguila-bob 2.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+/* Hardware accelerated animation utility classes */
+.animate-aguila-alive {
+  animation: aguila-alive 3.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   transform-origin: 50% 90%;
 }
 
+.animate-aguila-aura {
+  animation: aguila-aura 4s ease-in-out infinite;
+}
+
 .animate-aguila-shadow {
-  animation: aguila-shadow 2.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation: aguila-shadow-alive 3.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   transform-origin: center center;
 }
 
-.animate-aguila-celebrate {
-  animation: aguila-celebrate 0.85s cubic-bezier(0.23, 1, 0.32, 1) infinite;
+.animate-aguila-nod {
+  animation: aguila-nod 0.35s cubic-bezier(0.23, 1, 0.32, 1);
   transform-origin: 50% 90%;
 }
 
 .animate-aguila-studying {
-  animation: aguila-studying 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-  transform-origin: 50% 90%;
-}
-
-.animate-aguila-squash {
-  animation: aguila-squash 0.32s cubic-bezier(0.23, 1, 0.32, 1);
+  animation: aguila-studying 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   transform-origin: 50% 90%;
 }
 
@@ -127,20 +120,20 @@
 }
 
 .animate-aguila-bubble {
-  animation: aguila-bubble-in 0.22s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: aguila-bubble-in 0.2s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
-/* Reduced motion preference */
+/* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-  .animate-aguila-bob,
+  .animate-aguila-alive,
+  .animate-aguila-aura,
   .animate-aguila-shadow,
-  .animate-aguila-celebrate,
   .animate-aguila-studying {
     animation: none !important;
   }
-  .animate-aguila-squash {
+  .animate-aguila-nod {
     animation: none !important;
-    opacity: 0.85;
+    opacity: 0.9;
     transition: opacity 0.15s ease;
   }
   .animate-aguila-particle {
@@ -149,9 +142,10 @@
   }
 }
 
-/* Fine pointer hover gating */
+/* Pointer fine hover gating */
 @media (hover: hover) and (pointer: fine) {
   .aguila-clickable:hover .aguila-sprite {
-    filter: drop-shadow(0 4px 12px rgba(245, 158, 11, 0.25));
+    filter: drop-shadow(0 6px 16px rgba(245, 158, 11, 0.3));
+    transform: translateY(-1.5px) scale(1.02);
   }
 }
