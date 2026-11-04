@@ -454,8 +454,37 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
   const [coffeeBuff, setCoffeeBuff] = useState(false)
   const [snackToast, setSnackToast] = useState(null)
   const [soundOn, setSoundOn] = useState(true)
-  const [screenPos, setScreenPos] = useState({ x: 0, y: 0 })
   const [currentTime, setCurrentTime] = useState(() => (typeof window !== 'undefined' ? Date.now() : 0))
+  const hudRef = useRef(null)
+  const activeStationRef = useRef(null)
+  const propsRef = useRef({
+    setMyPosition,
+    onOpenScreenShare,
+    onOpenFlashcards,
+    onOpenPomodoro,
+    onOpenMusic,
+    onOpenLeaderboard,
+    onBroadcastBuff,
+    myMeta,
+    avatarConfig,
+    dogHappy,
+    isSitting,
+  })
+  useEffect(() => {
+    propsRef.current = {
+      setMyPosition,
+      onOpenScreenShare,
+      onOpenFlashcards,
+      onOpenPomodoro,
+      onOpenMusic,
+      onOpenLeaderboard,
+      onBroadcastBuff,
+      myMeta,
+      avatarConfig,
+      dogHappy,
+      isSitting,
+    }
+  })
 
   // 3D Player State Ref
   const player3DRef = useRef({
@@ -555,22 +584,22 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
 
     switch (station.category) {
       case 'study':
-        if (onOpenFlashcards) onOpenFlashcards()
+        if (propsRef.current.onOpenFlashcards) propsRef.current.onOpenFlashcards()
         break
       case 'boost':
         playCoffeeBrewSound()
         setCoffeeBuff(true)
-        if (onBroadcastBuff) onBroadcastBuff('☕ Fresh 3D Espresso brewed (+10 Focus)!')
+        if (propsRef.current.onBroadcastBuff) propsRef.current.onBroadcastBuff('☕ Fresh 3D Espresso brewed (+10 Focus)!')
         setTimeout(() => setCoffeeBuff(false), 7000)
         break
       case 'pet':
         playPetSound()
         setDogHappy(true)
-        if (onBroadcastBuff) onBroadcastBuff('🐶 Aguila pup is joyfully barking & wagging!')
+        if (propsRef.current.onBroadcastBuff) propsRef.current.onBroadcastBuff('🐶 Aguila pup is joyfully barking & wagging!')
         setTimeout(() => setDogHappy(false), 4500)
         break
       case 'tv':
-        if (onOpenScreenShare) onOpenScreenShare()
+        if (propsRef.current.onOpenScreenShare) propsRef.current.onOpenScreenShare()
         break
       case 'seat':
         // Sit down relaxingly WITHOUT automatically popping up pomodoro modal
@@ -594,15 +623,15 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         setTimeout(() => setSnackToast(null), 3000)
         break
       case 'music':
-        if (onOpenMusic) onOpenMusic()
+        if (propsRef.current.onOpenMusic) propsRef.current.onOpenMusic()
         break
       case 'rank':
-        if (onOpenLeaderboard) onOpenLeaderboard()
+        if (propsRef.current.onOpenLeaderboard) propsRef.current.onOpenLeaderboard()
         break
       default:
         break
     }
-  }, [onOpenFlashcards, onOpenMusic, onOpenLeaderboard, onOpenScreenShare, onBroadcastBuff])
+  }, [setIsSitting])
 
   // Keyboard WASD, Arrow Keys & Space Jump Handler
   useEffect(() => {
@@ -709,7 +738,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
     renderer.setSize(width, height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -724,8 +753,8 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     const sunLight = new THREE.DirectionalLight('#fffbeb', 1.35)
     sunLight.position.set(16, 26, 14)
     sunLight.castShadow = true
-    sunLight.shadow.mapSize.width = 2048
-    sunLight.shadow.mapSize.height = 2048
+    sunLight.shadow.mapSize.width = 1024
+    sunLight.shadow.mapSize.height = 1024
     sunLight.shadow.camera.near = 0.5
     sunLight.shadow.camera.far = 80
     sunLight.shadow.camera.left = -22
@@ -1749,11 +1778,11 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       playerGroup.position.z = pState.z
       playerGroup.rotation.y = pState.rotation
 
-      // Sync position to other players
-      if (setMyPosition && (pState.isMoving || pState.sitState || !pState.isGrounded)) {
+      // Sync position to other players (Throttled to ~5Hz for stable performance)
+      if (propsRef.current.setMyPosition && (pState.isMoving || pState.sitState || !pState.isGrounded)) {
         posSyncTimerRef.current = (posSyncTimerRef.current || 0) + 1
-        if (posSyncTimerRef.current % 4 === 0) {
-          setMyPosition({ x: pState.x, z: pState.z })
+        if (posSyncTimerRef.current % 12 === 0) {
+          propsRef.current.setMyPosition({ x: Math.round(pState.x * 100) / 100, z: Math.round(pState.z * 100) / 100 })
         }
       }
 
@@ -1763,26 +1792,29 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       const camTargetY = 22
       const camTargetZ = pState.z + Math.cos(orbit.azimuth) * orbit.distance * 0.72
 
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, camTargetX, 0.06)
-      camera.position.y = THREE.MathUtils.lerp(camera.position.y, camTargetY, 0.06)
-      camera.position.z = THREE.MathUtils.lerp(camera.position.z, camTargetZ, 0.06)
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, camTargetX, 0.08)
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, camTargetY, 0.08)
+      camera.position.z = THREE.MathUtils.lerp(camera.position.z, camTargetZ, 0.08)
       camera.lookAt(pState.x * 0.7, 1.2, pState.z * 0.7)
 
-      // Project 3D Screen Coordinates for Floating HUD Name Tag
-      const projVector = new THREE.Vector3(pState.x, pState.y + 2.5, pState.z)
-      projVector.project(camera)
-      const screenX = ((projVector.x + 1) / 2) * width
-      const screenY = ((-projVector.y + 1) / 2) * height
-      setScreenPos({ x: screenX, y: screenY })
+      // Project 3D Screen Coordinates for Floating HUD (Hardware accelerated transform, 0 React re-renders)
+      if (hudRef.current) {
+        const projVector = new THREE.Vector3(pState.x, pState.y + 2.5, pState.z)
+        projVector.project(camera)
+        const screenX = ((projVector.x + 1) / 2) * width
+        const screenY = ((-projVector.y + 1) / 2) * height
+        hudRef.current.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -100%)`
+      }
 
       // Animate Doggo (Breathing, Tail Wagging, Happy Bouncing)
       if (dogMeshRef.current) {
         const { tail, head, group } = dogMeshRef.current
-        const wagSpeed = dogHappy ? 20 : 6
-        const wagAngle = dogHappy ? 0.75 : 0.35
+        const isDogHappy = propsRef.current.dogHappy
+        const wagSpeed = isDogHappy ? 20 : 6
+        const wagAngle = isDogHappy ? 0.75 : 0.35
         tail.rotation.y = Math.sin(time * wagSpeed) * wagAngle
         head.rotation.y = Math.sin(time * 2.2) * 0.12
-        group.scale.y = dogHappy ? 1 + Math.abs(Math.sin(time * 12)) * 0.22 : 1 + Math.sin(time * 2.6) * 0.035
+        group.scale.y = isDogHappy ? 1 + Math.abs(Math.sin(time * 12)) * 0.22 : 1 + Math.sin(time * 2.6) * 0.035
       }
 
       // Flickering Fireplace Light
@@ -1804,7 +1836,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         }
       })
 
-      // Proximity Detection to nearest 3D Station
+      // Proximity Detection to nearest 3D Station (Only triggers state on station entry/exit)
       let nearest = null
       let minDist = Infinity
       for (const st of STATIONS_3D) {
@@ -1814,7 +1846,10 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
           nearest = st
         }
       }
-      setActiveStation(nearest)
+      if (nearest?.id !== activeStationRef.current?.id) {
+        activeStationRef.current = nearest
+        setActiveStation(nearest)
+      }
 
       renderer.render(scene, camera)
     }
@@ -1822,16 +1857,20 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     animate()
 
     // ─────────────────────────────────────────────────────────────────────────
-    // RESIZE OBSERVER (Eliminates the black space when chat collapses/expands!)
+    // RESIZE OBSERVER (Debounced & thresholded to prevent micro-stutters)
     // ─────────────────────────────────────────────────────────────────────────
+    let lastW = width
+    let lastH = height
     const handleResize = () => {
       if (!container) return
       const w = container.clientWidth
       const h = container.clientHeight
-      if (w > 0 && h > 0) {
+      if (w > 0 && h > 0 && (Math.abs(w - lastW) > 2 || Math.abs(h - lastH) > 2)) {
+        lastW = w
+        lastH = h
         camera.aspect = w / h
         camera.updateProjectionMatrix()
-        renderer.setSize(w, h)
+        renderer.setSize(w, h, false)
       }
     }
 
@@ -1855,18 +1894,8 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       }
       renderer.dispose()
     }
-  }, [
-    myMeta.avatarColor,
-    isSitting,
-    standUp,
-    setMyPosition,
-    dogHappy,
-    onOpenScreenShare,
-    avatarConfig?.clothColor,
-    avatarConfig?.hairColor,
-    avatarConfig?.skinColor,
-    avatarConfig?.accessory,
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Watch for chatOpen changes and trigger immediate canvas resize
   useEffect(() => {
@@ -2038,13 +2067,15 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         </div>
       )}
 
-      {/* 3D Billboard Name Tag & Speech Bubble above Player Avatar */}
+      {/* 3D Billboard Name Tag & Speech Bubble above Player Avatar (Hardware-accelerated) */}
       <div
+        ref={hudRef}
         style={{
           position: 'absolute',
-          left: screenPos.x,
-          top: screenPos.y,
-          transform: 'translate(-50%, -100%)',
+          top: 0,
+          left: 0,
+          transform: 'translate3d(0, 0, 0) translate(-50%, -100%)',
+          willChange: 'transform',
           pointerEvents: 'none',
           display: 'flex',
           flexDirection: 'column',

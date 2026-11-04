@@ -1218,19 +1218,27 @@ const {
   } = useLounge({ loungeCode: code, user, is3DMode: view3D })
   const room3DRef = useRef(null)
 
-  // Camera follow
+  // Camera follow (2D Retro only)
   useEffect(() => {
+    if (view3D) return
     const el = scrollViewRef.current
     if (!el) return
     const tx = myPosition.x + AVATAR_SIZE/2 - el.clientWidth/2
     const ty = myPosition.y + AVATAR_SIZE/2 - el.clientHeight/2
     el.scrollLeft = Math.max(0, tx)
     el.scrollTop  = Math.max(0, ty)
-  }, [myPosition, AVATAR_SIZE])
+  }, [myPosition, AVATAR_SIZE, view3D])
 
 
 
   const handleCopyCode = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2200) }
+
+  const handleOpenFlashcards = useCallback(() => setShowFlashcardModal(true), [setShowFlashcardModal])
+  const handleOpenQuiz = useCallback(() => router.push(`/quiz?from=${code}`), [router, code])
+  const handleOpenMusic = useCallback(() => setShowMusicInput(true), [setShowMusicInput])
+  const handleOpenPomodoro = useCallback(() => setShowPomodoroModal(true), [setShowPomodoroModal])
+  const handleOpenLeaderboard = useCallback(() => setShowLeaderboardModal(true), [setShowLeaderboardModal])
+  const handleOpenScreenShare = useCallback(() => setShowPresent(true), [setShowPresent])
 
   const handleSetMusic = (e) => {
     e.preventDefault()
@@ -1311,12 +1319,12 @@ const {
           setMovement={setMovement}
           activeEmotes={activeEmotes}
           chatMessages={chatMessages}
-          onOpenFlashcards={() => setShowFlashcardModal(true)}
-          onOpenQuiz={() => router.push(`/quiz?from=${code}`)}
-          onOpenMusic={() => setShowMusicInput(true)}
-          onOpenPomodoro={() => setShowPomodoroModal(true)}
-          onOpenLeaderboard={() => setShowLeaderboardModal(true)}
-          onOpenScreenShare={() => setShowPresent(true)}
+          onOpenFlashcards={handleOpenFlashcards}
+          onOpenQuiz={handleOpenQuiz}
+          onOpenMusic={handleOpenMusic}
+          onOpenPomodoro={handleOpenPomodoro}
+          onOpenLeaderboard={handleOpenLeaderboard}
+          onOpenScreenShare={handleOpenScreenShare}
           onBroadcastBuff={broadcastLoungeBuff}
           avatarConfig={avatarConfig}
           chatOpen={chatOpen}
