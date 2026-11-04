@@ -7,15 +7,74 @@ import * as THREE from 'three'
  * AguiMascot3D - Polished, Cute, and Interactive 3D Mascot Engine Rig
  * Built with Three.js (WebGL 60-120fps)
  * 
- * Refinements:
- * 1. Safe Hop Physics: Hard-clamped bounce ceiling (max 0.22 units) so Agui NEVER flies off-screen on rapid clicks!
- * 2. Unified Cute Face Mask: Replaced the dark brown center strip with a warm, fluffy cream/golden facial disc (no more "brown bother in middle").
- * 3. Polished Designer Cheeks: Replaced protruding meatball spheres with soft, smooth chibi cheeks and flush rosy blush discs.
- * 4. Adorable Sweet Eyes: Sclera + warm glowing honey irises + dual Pixar-style specular sparkles + clean blinks.
- * 5. Petite Royal Crown: Resized to a cute, elegant mini coronet (radius 0.30) that perches neatly atop the head.
- * 6. Conversational Lip-Sync: Articulated lower beak flaps smoothly when AI replies.
- * 7. Interactive 3D Drag Orbit: Drag to rotate in 3D perspective with spring return.
+ * Features:
+ * 1. Pixar/Anime-Grade Eye System:
+ *    - High-res procedural eye texture (Pure eye white + Radiant golden-honey iris + obsidian pupil + dual sparkling catchlights)
+ *    - Real 3D eyeball rotation tracking cursor gaze smoothly
+ *    - Eyelid sweep with realistic organic double-blinks and happy squint curves
+ * 2. Safe Hop Physics: Hard-clamped bounce ceiling (max 0.22 units) so Agui NEVER flies off-screen!
+ * 3. Unified Cute Face Mask: Fluffy golden-cream face disc (zero "brown bother in middle")
+ * 4. Polished Designer Cheeks: Soft flush rosy blush discs embedded smoothly
+ * 5. Petite Royal Crown: Cute mini coronet (radius 0.30) that perches neatly atop the head
+ * 6. Conversational Lip-Sync: Lower beak articulates open/closed when AI replies
+ * 7. Interactive 3D Drag Orbit: Drag to rotate in 3D perspective with spring return
  */
+
+// ── High-Craft Pixar Eye Texture Generator ─────────────────────────────────
+function createCuteEyeTexture() {
+  if (typeof document === 'undefined') return null
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  // 1. Sclera (White eye background with subtle soft warm edge vignette)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, 256, 256)
+
+  const scleraGrad = ctx.createRadialGradient(128, 128, 85, 128, 128, 128)
+  scleraGrad.addColorStop(0, '#ffffff')
+  scleraGrad.addColorStop(1, '#f3ede2')
+  ctx.fillStyle = scleraGrad
+  ctx.fillRect(0, 0, 256, 256)
+
+  // 2. Large Cute Iris (Radiant Golden-Honey with rich dark bronze rim)
+  const irisGrad = ctx.createRadialGradient(128, 128, 20, 128, 128, 86)
+  irisGrad.addColorStop(0, '#fef08a') // Honey-gold core
+  irisGrad.addColorStop(0.35, '#f59e0b') // Vibrant amber
+  irisGrad.addColorStop(0.75, '#d97706') // Rich warm bronze
+  irisGrad.addColorStop(0.95, '#78350f') // Dark defined edge
+  irisGrad.addColorStop(1.0, '#451a03') // Crisp limbal ring
+
+  ctx.beginPath()
+  ctx.arc(128, 128, 86, 0, Math.PI * 2)
+  ctx.fillStyle = irisGrad
+  ctx.fill()
+
+  // 3. Deep Obsidian Pupil
+  ctx.beginPath()
+  ctx.arc(128, 128, 45, 0, Math.PI * 2)
+  ctx.fillStyle = '#0a0e17'
+  ctx.fill()
+
+  // 4. Primary Glossy Specular Catchlight (Top-Left)
+  ctx.beginPath()
+  ctx.arc(104, 102, 22, 0, Math.PI * 2)
+  ctx.fillStyle = '#ffffff'
+  ctx.fill()
+
+  // 5. Secondary Micro Twinkle Sparkle (Bottom-Right)
+  ctx.beginPath()
+  ctx.arc(148, 150, 10, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+  ctx.fill()
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
 
 export default function AguiMascot3D({
   mood = 'idle',
@@ -95,7 +154,6 @@ export default function AguiMascot3D({
   // ── Safe Hop Trigger (Debounced & Clamped so it never shoots off-screen!) ──
   useEffect(() => {
     if (squashTrigger > 0) {
-      // Only initiate a hop if mascot is near ground (prevents infinite mid-air stacking)
       if (stateRef.current.hopY < 0.05) {
         stateRef.current.hopVy = 0.075 // Gentle cute bounce
       }
@@ -124,7 +182,6 @@ export default function AguiMascot3D({
     const height = sizePx
 
     const scene = new THREE.Scene()
-    // Portrait lens FOV (34 deg) for warm chibi proportions
     const camera = new THREE.PerspectiveCamera(34, width / height, 0.1, 100)
     camera.position.set(0, 0.08, 4.9)
 
@@ -152,7 +209,7 @@ export default function AguiMascot3D({
     const ambientLight = new THREE.AmbientLight(0xfff9f0, 1.45)
     scene.add(ambientLight)
 
-    // Warm Key Light (top-right forward)
+    // Key Light
     const keyLight = new THREE.DirectionalLight(0xffedd5, 1.85)
     keyLight.position.set(2.4, 4.0, 3.2)
     keyLight.castShadow = true
@@ -161,7 +218,7 @@ export default function AguiMascot3D({
     keyLight.shadow.bias = -0.001
     scene.add(keyLight)
 
-    // Soft sky-blue bounce fill (bottom-left)
+    // Sky-blue bounce fill
     const fillLight = new THREE.DirectionalLight(0xbae6fd, 0.75)
     fillLight.position.set(-2.8, 0.6, 2.0)
     scene.add(fillLight)
@@ -205,23 +262,6 @@ export default function AguiMascot3D({
       color: 0x451a03, // Mouth cavity
       roughness: 0.7,
     })
-    const matEyeWhite = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.08,
-    })
-    const matIris = new THREE.MeshStandardMaterial({
-      color: 0xeab308, // Glowing honey gold
-      emissive: 0x854d0e,
-      emissiveIntensity: 0.25,
-      roughness: 0.12,
-    })
-    const matPupil = new THREE.MeshStandardMaterial({
-      color: 0x090d16, // Obsidian black
-      roughness: 0.05,
-    })
-    const matGlint = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-    })
     const matBlush = new THREE.MeshBasicMaterial({
       color: 0xfb7185, // Soft rosy kawaii blush
       transparent: true,
@@ -234,6 +274,14 @@ export default function AguiMascot3D({
     const matWoodTop = new THREE.MeshStandardMaterial({
       color: 0x9a6538,
       roughness: 0.55,
+    })
+
+    // High-resolution eye texture
+    const eyeTexture = createCuteEyeTexture()
+    const matEye = new THREE.MeshStandardMaterial({
+      map: eyeTexture,
+      roughness: 0.08,
+      metalness: 0.04,
     })
 
     // ── 5. Hierarchical Character Model (Chibi Philippine Eagle) ───────────
@@ -384,14 +432,13 @@ export default function AguiMascot3D({
     headGroup.add(headMesh)
 
     // ── UNIFIED CUTE FACIAL DISC (Eliminates the "brown bother in middle"!) ──
-    // Smooth golden-cream mask that harmonizes eyes, cheeks, and beak
     const faceMaskGeo = new THREE.SphereGeometry(0.68, 30, 24)
     faceMaskGeo.scale(0.86, 0.74, 0.42)
     const faceMaskMesh = new THREE.Mesh(faceMaskGeo, matFaceMask)
     faceMaskMesh.position.set(0, 0.02, 0.52)
     headGroup.add(faceMaskMesh)
 
-    // Polished Rosy Blush Circles (embedded seamlessly on the cream mask)
+    // Polished Rosy Blush Circles
     const blushGeo = new THREE.CircleGeometry(0.095, 18)
     const leftBlush = new THREE.Mesh(blushGeo, matBlush)
     leftBlush.position.set(-0.28, -0.07, 0.70)
@@ -408,7 +455,6 @@ export default function AguiMascot3D({
     crestGroup.position.set(0, 0.54, -0.15)
     headGroup.add(crestGroup)
 
-    // Radiating fan of 5 soft plumes with spring damping
     const plumeAngles = [-0.48, -0.22, 0, 0.22, 0.48]
     plumeAngles.forEach((angle, idx) => {
       const plumeGeo = new THREE.ConeGeometry(0.13, 0.62 - Math.abs(angle) * 0.18, 10)
@@ -425,7 +471,7 @@ export default function AguiMascot3D({
     beakGroup.position.set(0, -0.08, 0.70)
     headGroup.add(beakGroup)
 
-    // Upper Cute Raptor Beak (petite and smiling)
+    // Upper Cute Raptor Beak
     const upperBeakGeo = new THREE.ConeGeometry(0.16, 0.38, 18)
     upperBeakGeo.scale(0.85, 1.0, 0.9)
     upperBeakGeo.rotateX(Math.PI / 2.3)
@@ -460,8 +506,8 @@ export default function AguiMascot3D({
     mouthCavityMesh.position.set(0, 0, 0.07)
     lowerBeakGroup.add(mouthCavityMesh)
 
-    // ── Big Expressive Anime/Pixar Eyes with Specular Glints ──
-    // Sweet chibi spacing (x = ±0.23, nestled comfortably in the cream mask)
+    // ── 5. Big Expressive Anime/Pixar Eyes with Clean Blinks ───────────────
+    // Sweet chibi eye spacing
     const eyeSpacing = 0.23
     const eyeHeight = 0.08
     const eyeDepth = 0.65
@@ -472,56 +518,46 @@ export default function AguiMascot3D({
       eyeAssembly.position.set(xPos, eyeHeight, eyeDepth)
       headGroup.add(eyeAssembly)
 
+      // Slight natural outward angle
       eyeAssembly.rotation.y = isRight ? 0.14 : -0.14
 
-      // Sclera (Eye White Sphere)
-      const eyeWhiteGeo = new THREE.SphereGeometry(0.17, 24, 20)
-      const eyeWhite = new THREE.Mesh(eyeWhiteGeo, matEyeWhite)
-      eyeAssembly.add(eyeWhite)
+      // Eyeball Sphere with high-res Pixar eye texture
+      const eyeGeo = new THREE.SphereGeometry(0.185, 32, 24)
+      // Rotate texture so the iris faces forward (+Z)
+      eyeGeo.rotateY(-Math.PI / 2)
+      const eyeMesh = new THREE.Mesh(eyeGeo, matEye)
+      eyeAssembly.add(eyeMesh)
 
-      // Large Honey Iris
-      const irisGeo = new THREE.SphereGeometry(0.132, 20, 16)
-      const irisMesh = new THREE.Mesh(irisGeo, matIris)
-      irisMesh.position.set(0, 0, 0.07)
-      eyeAssembly.add(irisMesh)
-
-      // Deep Obsidian Pupil
-      const pupilGeo = new THREE.SphereGeometry(0.09, 16, 12)
-      const pupilMesh = new THREE.Mesh(pupilGeo, matPupil)
-      pupilMesh.position.set(0, 0, 0.11)
-      eyeAssembly.add(pupilMesh)
-
-      // Primary Specular Catchlight (Top-Left)
-      const glintGeo = new THREE.SphereGeometry(0.038, 10, 8)
-      const glintMesh = new THREE.Mesh(glintGeo, matGlint)
-      glintMesh.position.set(-0.032, 0.045, 0.155)
-      eyeAssembly.add(glintMesh)
-
-      // Secondary Micro Sparkle (Bottom-Right)
-      const microGlintGeo = new THREE.SphereGeometry(0.018, 8, 6)
-      const microGlint = new THREE.Mesh(microGlintGeo, matGlint)
-      microGlint.position.set(0.035, -0.032, 0.155)
-      eyeAssembly.add(microGlint)
-
-      // Dynamic Eyelid (Rotates down for natural organic blinks, matches cream mask!)
-      const eyelidGeo = new THREE.SphereGeometry(0.182, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2)
+      // Dynamic Eyelid (Rotates from top to cover the entire front face smoothly)
+      // Hemisphere with radius 0.202 (larger than eye 0.185, so eye NEVER pokes through!)
+      const eyelidGeo = new THREE.SphereGeometry(0.202, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2)
       const eyelidMesh = new THREE.Mesh(eyelidGeo, matFaceMask)
-      eyelidMesh.rotation.x = -Math.PI / 2
+      // Default: retracted upwards under the brow
+      eyelidMesh.rotation.x = -0.35
       eyeAssembly.add(eyelidMesh)
+
+      // Happy Squint Curve Line (⌒) - visible during celebration or petting
+      const happyCurveGeo = new THREE.TorusGeometry(0.12, 0.02, 8, 20, Math.PI)
+      const happyCurveMat = new THREE.MeshBasicMaterial({ color: 0x451a03 })
+      const happyCurve = new THREE.Mesh(happyCurveGeo, happyCurveMat)
+      happyCurve.position.set(0, 0.02, 0.206)
+      happyCurve.rotation.x = Math.PI
+      happyCurve.visible = false
+      eyeAssembly.add(happyCurve)
 
       // Brow Tuft
       const browGeo = new THREE.BoxGeometry(0.22, 0.05, 0.12)
       const browMesh = new THREE.Mesh(browGeo, matPlumageDark)
-      browMesh.position.set(0, 0.15, 0.05)
+      browMesh.position.set(0, 0.16, 0.05)
       browMesh.rotation.z = isRight ? -0.1 : 0.1
       eyeAssembly.add(browMesh)
 
       return {
         assembly: eyeAssembly,
-        iris: irisMesh,
-        pupil: pupilMesh,
-        eyelid: eyelidMesh,
-        brow: browMesh,
+        eyeMesh,
+        eyelidMesh,
+        happyCurve,
+        browMesh,
       }
     }
 
@@ -648,7 +684,6 @@ export default function AguiMascot3D({
     const crownBase = new THREE.Mesh(crownBaseGeo, crownMat)
     crownGroup.add(crownBase)
 
-    // 5 cute petite peaks with gems
     for (let i = 0; i < 5; i++) {
       const angle = (i / 5) * Math.PI * 2
       const peakGeo = new THREE.ConeGeometry(0.075, 0.22, 8)
@@ -712,15 +747,15 @@ export default function AguiMascot3D({
       const nextDelay = 2600 + Math.random() * 3200
       blinkTimer = setTimeout(() => {
         triggerBlink()
-        if (Math.random() < 0.25) {
+        if (Math.random() < 0.28) {
           setTimeout(() => {
             stateRef.current.isBlinking = true
             stateRef.current.blinkProgress = 0
-          }, 220)
+          }, 200)
         }
       }, nextDelay)
     }
-    blinkTimer = setTimeout(triggerBlink, 2000)
+    blinkTimer = setTimeout(triggerBlink, 1800)
 
     // ── 8. Conversational Lip-Sync Movement (Speech Beak Flap) ─────────────
     let flapInterval = null
@@ -759,12 +794,12 @@ export default function AguiMascot3D({
       state.targetRotY = Math.max(-0.55, Math.min(0.55, nx * 0.65))
       state.targetRotX = Math.max(-0.38, Math.min(0.38, -ny * 0.48))
 
-      state.targetPupilX = Math.max(-0.055, Math.min(0.055, nx * 0.06))
-      state.targetPupilY = Math.max(-0.04, Math.min(0.04, -ny * 0.045))
+      state.targetPupilX = Math.max(-0.065, Math.min(0.065, nx * 0.07))
+      state.targetPupilY = Math.max(-0.05, Math.min(0.05, -ny * 0.055))
 
       if (state.isInputFocused) {
         state.targetRotX = -0.28
-        state.targetPupilY = -0.04
+        state.targetPupilY = -0.05
       }
 
       if (state.mood === 'thinking' || state.isTyping) {
@@ -908,48 +943,55 @@ export default function AguiMascot3D({
       state.tasselAngle += state.tasselVelocity * delta
       tasselPivot.rotation.z = state.tasselAngle
 
-      // 6. Pupil Gaze Displacement
-      leftEye.iris.position.x = state.currentPupilX
-      leftEye.iris.position.y = state.currentPupilY
-      leftEye.pupil.position.x = state.currentPupilX * 1.12
-      leftEye.pupil.position.y = state.currentPupilY * 1.12
+      // 6. 3D Ocular Gaze Tracking
+      // Rotate the eye sphere so the iris and pupil physically look toward cursor
+      leftEye.eyeMesh.rotation.y = state.currentPupilX * 4.2
+      leftEye.eyeMesh.rotation.x = -state.currentPupilY * 3.8
 
-      rightEye.iris.position.x = state.currentPupilX
-      rightEye.iris.position.y = state.currentPupilY
-      rightEye.pupil.position.x = state.currentPupilX * 1.12
-      rightEye.pupil.position.y = state.currentPupilY * 1.12
+      rightEye.eyeMesh.rotation.y = state.currentPupilX * 4.2
+      rightEye.eyeMesh.rotation.x = -state.currentPupilY * 3.8
 
-      // 7. Dynamic Blinking & Happy Squint
+      // 7. Clean Eyelid Sweep & Dynamic Blinking
       const isHappy = state.happyTrigger || state.mood === 'celebrating'
       if (isHappy) {
-        leftEye.eyelid.rotation.x = -0.22
-        rightEye.eyelid.rotation.x = -0.22
-        leftEye.brow.rotation.z = -0.28
-        rightEye.brow.rotation.z = 0.28
-      } else if (state.isBlinking) {
-        state.blinkProgress += delta * 18
-        if (state.blinkProgress >= Math.PI) {
-          state.isBlinking = false
-          leftEye.eyelid.rotation.x = -Math.PI / 2
-          rightEye.eyelid.rotation.x = -Math.PI / 2
-        } else {
-          const blinkRot = -Math.PI / 2 + Math.sin(state.blinkProgress) * 1.6
-          leftEye.eyelid.rotation.x = blinkRot
-          rightEye.eyelid.rotation.x = blinkRot
-        }
+        // Happy arched squint
+        leftEye.eyelidMesh.rotation.x = 0.85
+        rightEye.eyelidMesh.rotation.x = 0.85
+        leftEye.happyCurve.visible = true
+        rightEye.happyCurve.visible = true
+        leftEye.browMesh.rotation.z = -0.25
+        rightEye.browMesh.rotation.z = 0.25
       } else {
-        leftEye.eyelid.rotation.x = -Math.PI / 2
-        rightEye.eyelid.rotation.x = -Math.PI / 2
+        leftEye.happyCurve.visible = false
+        rightEye.happyCurve.visible = false
+
+        if (state.isBlinking) {
+          state.blinkProgress += delta * 18
+          if (state.blinkProgress >= Math.PI) {
+            state.isBlinking = false
+            leftEye.eyelidMesh.rotation.x = -0.35
+            rightEye.eyelidMesh.rotation.x = -0.35
+          } else {
+            // Smooth sweep: from -0.35 down across front of eyeball to 1.55 rad (covers entire eye!)
+            const blinkSweep = -0.35 + Math.sin(state.blinkProgress) * 1.9
+            leftEye.eyelidMesh.rotation.x = blinkSweep
+            rightEye.eyelidMesh.rotation.x = blinkSweep
+          }
+        } else {
+          // Open eye: eyelid tucked cleanly up under brow
+          leftEye.eyelidMesh.rotation.x = -0.35
+          rightEye.eyelidMesh.rotation.x = -0.35
+        }
 
         if (state.mood === 'studying') {
-          leftEye.brow.rotation.z = 0.26
-          rightEye.brow.rotation.z = -0.26
+          leftEye.browMesh.rotation.z = 0.24
+          rightEye.browMesh.rotation.z = -0.24
         } else if (state.mood === 'thinking') {
-          leftEye.brow.rotation.z = -0.1
-          rightEye.brow.rotation.z = -0.32
+          leftEye.browMesh.rotation.z = -0.08
+          rightEye.browMesh.rotation.z = -0.3
         } else {
-          leftEye.brow.rotation.z = 0.12
-          rightEye.brow.rotation.z = -0.12
+          leftEye.browMesh.rotation.z = 0.1
+          rightEye.browMesh.rotation.z = -0.1
         }
       }
 
@@ -990,6 +1032,7 @@ export default function AguiMascot3D({
           }
         }
       })
+      if (eyeTexture) eyeTexture.dispose()
     }
   }, [sizePx, interactive])
 
