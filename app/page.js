@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -116,64 +116,96 @@ function SessionItem({ session, isActive, onClick, onArchive, onRestore, isArchi
   )
 }
 
-// 🌟 SMART Mermaid renderer: Only renders when the graph is valid!
-const MermaidDiagram = ({ chart }) => {
-  const [svg, setSvg] = useState('')
-  const [isValid, setIsValid] = useState(false)
-  
-  useEffect(() => {
-    const renderChart = async () => {
-      // 1. Basic check: Mermaid must start with a valid diagram keyword (graph, pie, etc.)
-      const validTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'mindmap', 'timeline'];
-      const firstWord = chart.trim().split(/\s+/)[0];
-      
-      if (!validTypes.includes(firstWord)) {
-        setIsValid(false);
-        return;
-      }
+// ── In-Memory Cache for Pre-Rendered Mermaid Diagrams ────────────────
+const diagramSvgCache = new Map()
 
+// 🌟 SMART Stable Mermaid Renderer: High performance, zero typing flicker
+const MermaidDiagram = memo(function MermaidDiagram({ chart }) {
+  const cleanChart = (chart || '')
+    .replace(/```mermaid/gi, '')
+    .replace(/```/g, '')
+    .replace(/_$/, '')
+    .trim()
+
+  const [svg, setSvg] = useState(() => diagramSvgCache.get(cleanChart) || '')
+  const [isValid, setIsValid] = useState(() => diagramSvgCache.has(cleanChart))
+
+  useEffect(() => {
+    if (!cleanChart) return
+
+    if (diagramSvgCache.has(cleanChart)) {
+      setSvg(diagramSvgCache.get(cleanChart))
+      setIsValid(true)
+      return
+    }
+
+    let cancelled = false
+    const validTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'mindmap', 'timeline']
+    const firstWord = cleanChart.split(/\s+/)[0]
+
+    if (!validTypes.includes(firstWord)) {
+      return
+    }
+
+    const renderChart = async () => {
       try {
-        mermaid.initialize({ theme: 'dark', startOnLoad: false, securityLevel: 'loose' })
-        
-        // 2. 🛡️ SILENT PARSE: Check syntax without rendering. 
-        // If this throws, it stays in "typing" mode.
-        await mermaid.parse(chart)
-        
-        // 3. If parsing passes, render the actual SVG
-        const { svg } = await mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, chart)
-        setSvg(svg)
+        mermaid.initialize({
+          theme: 'dark',
+          startOnLoad: false,
+          securityLevel: 'loose',
+          fontFamily: 'monospace',
+          themeVariables: {
+            darkMode: true,
+            background: '#0a0a0a',
+            primaryColor: '#6366f1',
+            primaryTextColor: '#f8fafc',
+            primaryBorderColor: '#4f46e5',
+            lineColor: '#fbbf24',
+            secondaryColor: '#1e1b4b',
+            tertiaryColor: '#171717',
+          }
+        })
+
+        await mermaid.parse(cleanChart)
+        if (cancelled) return
+
+        const chartHash = Math.abs(cleanChart.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0)).toString(36)
+        const renderId = `mermaid-diag-${chartHash}`
+
+        const { svg: renderedSvg } = await mermaid.render(renderId, cleanChart)
+        if (cancelled) return
+
+        diagramSvgCache.set(cleanChart, renderedSvg)
+        setSvg(renderedSvg)
         setIsValid(true)
       } catch (err) {
-        // Still typing or invalid syntax — hide the error bombs!
-        setIsValid(false)
+        // Kept in static preview mode if still invalid or streaming
       }
     }
-    
-    if (chart.trim()) renderChart()
-  }, [chart])
 
-  // While typing or invalid: Show a cool "Matrix-style" code box
-  if (!isValid || !svg) {
+    renderChart()
+    return () => { cancelled = true }
+  }, [cleanChart])
+
+  if (isValid && svg) {
     return (
-      <div className="my-4 bg-neutral-900 border border-neutral-800 p-4 rounded-xl font-mono text-[10px] text-indigo-400/80 whitespace-pre-wrap border-l-4 border-l-indigo-500/50">
-        <div className="flex items-center gap-2 mb-2 text-neutral-500 uppercase tracking-widest text-[9px] font-bold">
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-          Building Visual...
-        </div>
-        {chart}
-        <span className="animate-pulse text-indigo-500 font-bold ml-0.5">_</span>
-      </div>
+      <div 
+        className="my-3 p-3 bg-neutral-950/80 rounded-xl border border-neutral-800 flex justify-center overflow-x-auto shadow-sm"
+        dangerouslySetInnerHTML={{ __html: svg }} 
+      />
     )
   }
 
-  // Once valid: Show the beautiful chart!
   return (
-    <div 
-      className="my-4 bg-neutral-900/50 p-4 rounded-xl border border-neutral-700 flex justify-center overflow-x-auto animate-fade-in-up"
-      dangerouslySetInnerHTML={{ __html: svg }} 
-    />
+    <div className="my-3 bg-neutral-950 border border-neutral-800 p-3 rounded-xl font-mono text-[11px] text-neutral-400 whitespace-pre-wrap border-l-2 border-l-amber-500/60 overflow-x-auto">
+      <div className="flex items-center gap-1.5 mb-1.5 text-neutral-500 uppercase tracking-widest text-[9px] font-bold">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-pulse" />
+        Visual Diagram Source
+      </div>
+      <code>{cleanChart}</code>
+    </div>
   )
-}
+})
 
 // ── Available AI Study Engines (Model Selector) ───────────────────────
 const AVAILABLE_MODELS = [
@@ -190,9 +222,9 @@ const AVAILABLE_MODELS = [
     speed: 'Deep Thinker',
   },
   {
-    id: 'google/gemini-2.0-flash-001',
-    name: 'Gemini 2.0 Flash',
-    shortName: 'Gemini Flash',
+    id: 'google/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    shortName: 'Gemini 2.5',
     tag: '1M Context & Fast',
     iconType: 'spark',
     badge: 'FASTEST',
@@ -296,25 +328,32 @@ const MarkdownRenderer = ({ content }) => (
   </div>
 )
 
-// 🌟 2. The Typewriter Engine
+// 🌟 2. The Typewriter Engine (Stable, flicker-free rendering)
 const TypewriterMarkdown = ({ content }) => {
-  const [displayed, setDisplayed] = useState('')
+  // If the content includes code blocks or mermaid diagrams, avoid slicing partial AST tokens
+  const hasFences = content.includes('```')
+  const [displayed, setDisplayed] = useState(hasFences ? content : '')
 
   useEffect(() => {
+    if (hasFences) {
+      setDisplayed(content)
+      return
+    }
+
     let i = 0
     const timer = setInterval(() => {
-      i += 5 // 🌟 Faster typing jump
+      i += 8
       setDisplayed(content.slice(0, i))
       if (i >= content.length) clearInterval(timer)
     }, 15)
     return () => clearInterval(timer)
-  }, [content])
+  }, [content, hasFences])
 
   return <MarkdownRenderer content={displayed} />
 }
 
-// ── Retro Academic Message Bubble ─────────────────────────────────────
-function ChatMessage({ msg, userEmail, defaultModel, onExplainSimpler = null }) {
+// ── Retro Academic Message Bubble (Memoized to isolate input typing) ──
+const ChatMessage = memo(function ChatMessage({ msg, userEmail, defaultModel, onExplainSimpler = null }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
@@ -426,7 +465,16 @@ function ChatMessage({ msg, userEmail, defaultModel, onExplainSimpler = null }) 
       </div>
     </div>
   )
-}
+}, (prev, next) => {
+  return (
+    prev.msg.content === next.msg.content &&
+    prev.msg.role === next.msg.role &&
+    prev.msg.isNew === next.msg.isNew &&
+    prev.msg.modelUsed === next.msg.modelUsed &&
+    prev.userEmail === next.userEmail &&
+    prev.defaultModel === next.defaultModel
+  )
+})
 
 // ── Main component ───────────────────────────────────────────────────
 export default function Home() {
@@ -1499,101 +1547,6 @@ export default function Home() {
                     
                   </div>
 
-                  {/* 🌟 The 5 Student Hooks (Study Power Tools) */}
-                  <div className="w-full max-w-md mb-8">
-                    <div className="flex items-center justify-between mb-2.5 px-0.5">
-                      <span className="text-[11px] font-bold text-amber-400 font-mono uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-amber-400 inline-block shadow-[0_0_4px_rgba(251,191,36,0.8)]" />
-                        5 Student Power Hooks
-                      </span>
-                      <span className="text-[10px] text-neutral-500 font-mono">Exam &amp; Recall Boosters</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* Hook 1: Exam Cram Cheatsheet */}
-                      <button
-                        onClick={() => handleTriggerHook('cram')}
-                        className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left transition-all group"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          {Icon.bolt('w-4 h-4 text-amber-400')}
-                          <span className="text-[9px] font-mono px-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">HOOK 1</span>
-                        </div>
-                        <p className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">Exam Cheatsheet</p>
-                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Formulas, definitions &amp; common traps</p>
-                      </button>
-
-                      {/* Hook 2: Feynman ELI5 Analogy */}
-                      <button
-                        onClick={() => handleTriggerHook('eli5')}
-                        className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-emerald-500/50 rounded-xl text-left transition-all group"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          {Icon.lightbulb('w-4 h-4 text-emerald-400')}
-                          <span className="text-[9px] font-mono px-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HOOK 2</span>
-                        </div>
-                        <p className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors">Feynman (ELI5)</p>
-                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Intuitive real-world analogies</p>
-                      </button>
-
-                      {/* Hook 3: Socratic Tutor Mode */}
-                      <button
-                        onClick={() => {
-                          setStudyMode(m => m === 'socratic' ? 'standard' : 'socratic')
-                        }}
-                        className={`p-3 border rounded-xl text-left transition-all group ${
-                          studyMode === 'socratic'
-                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-sm'
-                            : 'bg-neutral-900/90 hover:bg-neutral-800/80 border-neutral-800 hover:border-indigo-500/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          {Icon.owl('w-4 h-4 text-indigo-400')}
-                          <span className={`text-[9px] font-mono px-1 rounded border ${
-                            studyMode === 'socratic' ? 'bg-indigo-500 text-white border-indigo-400' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                          }`}>
-                            {studyMode === 'socratic' ? 'ACTIVE' : 'HOOK 3'}
-                          </span>
-                        </div>
-                        <p className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors">Socratic Tutor</p>
-                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
-                          {studyMode === 'socratic' ? 'Guides problem-solving' : 'Lead, don’t spoon-feed'}
-                        </p>
-                      </button>
-
-                      {/* Hook 4: Active Recall Flashcard Drill */}
-                      <button
-                        onClick={handleOpenFlashcards}
-                        className="p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left transition-all group"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          {Icon.cards('w-4 h-4 text-amber-400')}
-                          <span className="text-[9px] font-mono px-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">HOOK 4</span>
-                        </div>
-                        <p className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">Flashcard Drill</p>
-                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Active recall with XP &amp; streaks</p>
-                      </button>
-
-                      {/* Hook 5: Exam Readiness & Weak Spots (Span 2 cols) */}
-                      <button
-                        onClick={() => handleTriggerHook('weakspots')}
-                        className="col-span-2 p-3 bg-neutral-900/90 hover:bg-neutral-800/80 border border-neutral-800 hover:border-purple-500/50 rounded-xl text-left transition-all group flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          {Icon.target('w-4 h-4 text-purple-400')}
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-semibold text-white group-hover:text-purple-300 transition-colors">Exam Readiness &amp; Weak Spots</p>
-                              <span className="text-[9px] font-mono px-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">HOOK 5</span>
-                            </div>
-                            <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">Diagnoses your #1 conceptual blindspot with a 3-minute fix</p>
-                          </div>
-                        </div>
-                        <span className="text-purple-400 text-xs font-mono group-hover:translate-x-0.5 transition-transform">Run →</span>
-                      </button>
-                    </div>
-                  </div>
-
                   {/* Recent sessions */}
                   {sessions.length > 0 && (
                     <div className="w-full max-w-md">
@@ -1797,7 +1750,7 @@ export default function Home() {
                 </button>
               )}
 
-              {/* Quick AI Engine Selector & 5 Hooks Bar */}
+              {/* Quick AI Engine Selector & Active Study Tools Bar */}
               <div className="flex items-center justify-between px-1.5 py-0.5 text-xs select-none gap-2">
                 <div className="flex items-center gap-1 overflow-x-auto py-0.5 retro-scroll">
                   <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider mr-0.5">Engine:</span>
@@ -1826,7 +1779,7 @@ export default function Home() {
 
                   <span className="text-neutral-700 mx-0.5">|</span>
 
-                  {/* Socratic Mode Toggle (Hook 3) */}
+                  {/* Socratic Tutor Mode Toggle */}
                   <button
                     type="button"
                     onClick={() => setStudyMode(m => m === 'socratic' ? 'standard' : 'socratic')}
@@ -1841,7 +1794,7 @@ export default function Home() {
                     <span>{studyMode === 'socratic' ? 'Socratic ON' : 'Socratic'}</span>
                   </button>
 
-                  {/* Flashcards (Hook 4) */}
+                  {/* Flashcards Drill */}
                   <button
                     type="button"
                     onClick={handleOpenFlashcards}
@@ -1852,7 +1805,7 @@ export default function Home() {
                     <span className="hidden sm:inline">Cards</span>
                   </button>
 
-                  {/* Exam Cram Cheatsheet (Hook 1) */}
+                  {/* Exam Cram Cheatsheet */}
                   <button
                     type="button"
                     onClick={() => handleTriggerHook('cram')}

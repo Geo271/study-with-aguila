@@ -179,6 +179,8 @@ export default function AguiMascot({
 
   // Mouse & gaze tracking states
   const [gaze, setGaze] = useState({ tiltX: 0, tiltY: 0, pupilX: 0, pupilY: 0 })
+  // Mascot Engine conversational mouth / beak dynamics
+  const [mouthOpen, setMouthOpen] = useState(0)
 
   const mascotRef = useRef(null)
   const timerRef = useRef(null)
@@ -304,6 +306,24 @@ export default function AguiMascot({
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
   }, [interactive, isInputFocused, isTyping])
+
+  // ── Mascot Engine Conversational Lip-Sync (Dynamic Beak Flap when AI replies) ──
+  useEffect(() => {
+    if (!isTyping) {
+      setMouthOpen(0)
+      return
+    }
+
+    let flapTimer
+    const animateMouth = () => {
+      const openVal = Math.random() > 0.35 ? Number((0.35 + Math.random() * 0.65).toFixed(2)) : 0
+      setMouthOpen(openVal)
+      flapTimer = setTimeout(animateMouth, 85 + Math.random() * 95)
+    }
+
+    animateMouth()
+    return () => clearTimeout(flapTimer)
+  }, [isTyping])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -550,7 +570,7 @@ export default function AguiMascot({
             isStudyingMood || isThinkingMood ? 'animate-aguila-studying' : 'animate-aguila-alive'
           } ${isSquashing ? 'animate-aguila-squash' : ''}`}
           style={{
-            transform: `perspective(500px) rotateX(${gaze.tiltX}deg) rotateY(${gaze.tiltY}deg)`,
+            transform: `perspective(600px) rotateX(${gaze.tiltX}deg) rotateY(${gaze.tiltY}deg) rotateZ(${gaze.tiltY * 0.16}deg)`,
             transformOrigin: '50% 85%',
           }}
         >
@@ -576,6 +596,20 @@ export default function AguiMascot({
             style={{ imageRendering: 'pixelated' }}
             aria-hidden="true"
           >
+            {/* ── Mascot Engine Secondary Physics Crest Feather Lag ─────── */}
+            <g transform={`translate(${49 - gaze.tiltY * 0.35}, ${16 - gaze.tiltX * 0.25})`}>
+              <path
+                d="M -6 8 Q -10 2 -6 -5 Q -3 4 -1 7 Q 0 -8 3 -5 Q 2 3 5 6 Q 9 0 10 5 Q 5 8 0 8 Z"
+                fill="#78350F"
+                opacity="0.9"
+                style={{
+                  transform: `rotate(${-gaze.tiltY * 0.6}deg)`,
+                  transformOrigin: '0% 100%',
+                  transition: 'transform 0.12s ease-out'
+                }}
+              />
+            </g>
+
             {/* Left Eye & Pupil */}
             <g transform="translate(37, 41)">
               {showHappyEyes ? (
@@ -661,6 +695,22 @@ export default function AguiMascot({
                 </>
               )}
             </g>
+
+            {/* ── Mascot Engine Conversational Animated Beak Overlay ──────── */}
+            {isTyping && (
+              <g transform={`translate(49, ${48 + mouthOpen * 1.6})`}>
+                {mouthOpen > 0.2 && (
+                  <ellipse cx="0" cy="1" rx="2.5" ry={mouthOpen * 1.5} fill="#451a03" />
+                )}
+                {/* Hooked raptor lower beak */}
+                <path
+                  d={`M -3.5 0 Q 0 ${1.8 + mouthOpen * 2.2} 3.5 0 Z`}
+                  fill="#F59E0B"
+                  stroke="#78350F"
+                  strokeWidth="0.8"
+                />
+              </g>
+            )}
 
             {/* ── Retro RPG Accessories Layer ───────────────────────────── */}
             {/* 1. Scholar Glasses */}
