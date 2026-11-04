@@ -17,6 +17,7 @@ import {
 import { Track } from 'livekit-client'
 import '@livekit/components-styles'
 import LoungeGameRoom from '@/components/LoungeGameRoom'
+import Lounge3DRoom from '@/components/Lounge3DRoom'
 import PomodoroTimer from '@/components/PomodoroTimer'
 import FlashcardModal from '@/components/FlashcardModal'
 
@@ -1087,6 +1088,7 @@ export default function LoungePage() {
   const [showPomodoroModal, setShowPomodoroModal] = useState(false)
   const [showFlashcardModal, setShowFlashcardModal] = useState(false)
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
+  const [view3D, setView3D] = useState(true)
 
   const scrollViewRef = useRef(null)
 
@@ -1215,23 +1217,43 @@ const {
       </div>
 
       {/* Living Interactive Game Room */}
-      <LoungeGameRoom
-        myPosition={myPosition}
-        setMyPosition={setMyPosition}
-        otherUsers={otherUsers}
-        myMeta={myMeta}
-        isMoving={isMoving}
-        setMovement={setMovement}
-        activeEmotes={activeEmotes}
-        chatMessages={chatMessages}
-        onOpenFlashcards={() => setShowFlashcardModal(true)}
-        onOpenQuiz={() => router.push(`/quiz?from=${code}`)}
-        onOpenMusic={() => setShowMusicInput(true)}
-        onOpenPomodoro={() => setShowPomodoroModal(true)}
-        onOpenLeaderboard={() => setShowLeaderboardModal(true)}
-        onBroadcastBuff={broadcastLoungeBuff}
-        token={token}
-      />
+      {view3D ? (
+        <Lounge3DRoom
+          myPosition={myPosition}
+          setMyPosition={setMyPosition}
+          otherUsers={otherUsers}
+          myMeta={myMeta}
+          isMoving={isMoving}
+          setMovement={setMovement}
+          activeEmotes={activeEmotes}
+          chatMessages={chatMessages}
+          onOpenFlashcards={() => setShowFlashcardModal(true)}
+          onOpenQuiz={() => router.push(`/quiz?from=${code}`)}
+          onOpenMusic={() => setShowMusicInput(true)}
+          onOpenPomodoro={() => setShowPomodoroModal(true)}
+          onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+          onBroadcastBuff={broadcastLoungeBuff}
+          token={token}
+        />
+      ) : (
+        <LoungeGameRoom
+          myPosition={myPosition}
+          setMyPosition={setMyPosition}
+          otherUsers={otherUsers}
+          myMeta={myMeta}
+          isMoving={isMoving}
+          setMovement={setMovement}
+          activeEmotes={activeEmotes}
+          chatMessages={chatMessages}
+          onOpenFlashcards={() => setShowFlashcardModal(true)}
+          onOpenQuiz={() => router.push(`/quiz?from=${code}`)}
+          onOpenMusic={() => setShowMusicInput(true)}
+          onOpenPomodoro={() => setShowPomodoroModal(true)}
+          onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+          onBroadcastBuff={broadcastLoungeBuff}
+          token={token}
+        />
+      )}
 
       {/* Chat panel */}
       {chatOpen && (
@@ -1336,6 +1358,10 @@ const {
 
         <div className="hide-scroll" style={{ display:'flex', alignItems:'center', gap:7, overflowX:'auto' }}>
           {token && roomOptions && <StartAudio label="Enable Audio" className="header-start-audio" />}
+
+          <button onClick={() => setView3D(v => !v)} style={{ display:'flex', alignItems:'center', gap:5, background:view3D ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)', border:`1px solid ${view3D ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, borderRadius:8, padding:'4px 10px', color:view3D ? '#a5b4fc' : '#a1a1aa', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+            <span>{view3D ? '🧊 3D Room' : '🕹️ 2D Retro'}</span>
+          </button>
 
           <Link href={`/quiz?from=${code}`} style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:8, padding:'4px 10px', color:'#fbbf24', fontSize:11, fontWeight:600, whiteSpace:'nowrap', textDecoration:'none' }}>
             {Ic.edit('w-3.5 h-3.5')} <span className="hidden sm:inline">Quiz</span>
