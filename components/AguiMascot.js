@@ -457,64 +457,60 @@ export default function AguiMascot({
   return (
     <div 
       ref={mascotRef}
-      className="flex flex-col items-center select-none relative max-w-sm mx-auto"
+      className="flex flex-col items-center select-none relative max-w-sm mx-auto w-full"
     >
-      {/* ── Mascot Engine Live Status Tag ── */}
-      {viewMode === '3d' && (
-        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-[10px] font-mono text-emerald-400 font-semibold mb-2 shadow-[0_0_12px_rgba(16,185,129,0.15)] animate-aguila-bubble">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-          <span className="tracking-wider uppercase">Live 3D Mascot</span>
-          <span className="text-emerald-500/50">|</span>
-          <span className="text-[9px] text-emerald-300/80">Interactive</span>
-        </div>
-      )}
-
       {/* ── Retro 16-Bit RPG Dialogue Box / Study Guide ── */}
       {showBubble && (
         <div 
           key={bubbleKey}
           onClick={handleBubbleCycle}
           title="Click to cycle study guide"
-          className="relative mb-3 max-w-[300px] sm:max-w-[340px] cursor-pointer group animate-aguila-bubble focus:outline-none z-20"
+          className="relative mb-2.5 max-w-[310px] sm:max-w-[340px] w-full cursor-pointer group animate-aguila-bubble focus:outline-none z-20"
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBubbleCycle() } }}
         >
           {/* Retro RPG Dialogue Panel */}
-          <div className="bg-neutral-900/95 border-2 border-neutral-700/80 group-hover:border-amber-400/80 px-4 py-2.5 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.85)] backdrop-blur-md transition-all duration-200">
+          <div className="bg-neutral-900/95 border-2 border-neutral-700/80 group-hover:border-amber-400/80 px-3.5 py-2 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.85)] backdrop-blur-md transition-all duration-200">
             {/* Header with Mode Toggle & Controls */}
-            <div className="flex items-center justify-between gap-1.5 mb-1 pb-1 border-b border-neutral-800">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-amber-400 inline-block shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 font-mono">
+            <div className="flex items-center justify-between gap-1 mb-1 pb-1 border-b border-neutral-800">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_rgba(251,191,36,0.8)] flex-shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 font-mono truncate">
                   {currentBadge}
                 </span>
+                {viewMode === '3d' && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-950/80 text-[8px] font-mono font-bold text-emerald-400 border border-emerald-500/30">
+                    <span className="w-1 h-1 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    3D
+                  </span>
+                )}
               </div>
 
               {/* Quick Controls: 3D/2D Mode, Outfit, Audio */}
-              <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                 {/* 3D vs 2D Switcher */}
                 <button
                   type="button"
                   onClick={toggleViewMode}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border flex items-center gap-1 ${
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono transition-colors border flex items-center gap-0.5 ${
                     viewMode === '3d'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold'
                       : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:text-white'
                   }`}
                   title="Switch between Real-Time 3D and Classic 2D Mascot"
                 >
-                  <span className="font-bold">{viewMode === '3d' ? '3D' : '2D'}</span>
+                  <span>{viewMode === '3d' ? '3D' : '2D'}</span>
                 </button>
 
                 {/* Outfit Selector */}
                 <button
                   type="button"
                   onClick={cycleAccessory}
-                  className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-[10px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700 flex items-center gap-1"
+                  className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-[9px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700 flex items-center gap-1"
                   title="Cycle 3D RPG outfit (Glasses, Cap, Headphones, Crown, Headband)"
                 >
-                  {Icon[ACCESSORIES.find(a => a.id === accessory)?.iconType || 'feather']?.('w-3 h-3 text-amber-400')}
+                  {Icon[ACCESSORIES.find(a => a.id === accessory)?.iconType || 'feather']?.('w-2.5 h-2.5 text-amber-400')}
                   <span className="hidden sm:inline text-[9px] uppercase">Outfit</span>
                 </button>
 
@@ -522,13 +518,13 @@ export default function AguiMascot({
                 <button
                   type="button"
                   onClick={toggleSound}
-                  className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-[10px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700"
+                  className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-[9px] font-mono text-neutral-300 hover:text-amber-300 transition-colors border border-neutral-700"
                   title={soundEnabled ? '8-Bit audio enabled (click to mute)' : 'Muted (click to enable 8-bit sounds)'}
                 >
-                  {soundEnabled ? Icon.volume('w-3 h-3 text-amber-400') : Icon.volumeX('w-3 h-3 text-neutral-400')}
+                  {soundEnabled ? Icon.volume('w-2.5 h-2.5 text-amber-400') : Icon.volumeX('w-2.5 h-2.5 text-neutral-400')}
                 </button>
 
-                <span className="text-[9px] text-neutral-500 font-mono ml-0.5 flex items-center gap-1">
+                <span className="text-[9px] text-neutral-500 font-mono ml-0.5 hidden sm:flex items-center gap-0.5">
                   <span>LVL 5</span>
                   {Icon.eagle('w-2.5 h-2.5 text-amber-400/80')}
                 </span>
@@ -540,22 +536,22 @@ export default function AguiMascot({
             </p>
 
             {isThinkingMood && (
-              <div className="flex items-center gap-2 mt-2 pt-1 border-t border-neutral-800/80">
+              <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-neutral-800/80">
                 <span className="w-1.5 h-1.5 bg-amber-400 animate-ping inline-block" />
-                <span className="text-[10px] font-mono text-amber-400 font-semibold tracking-wider">
+                <span className="text-[9px] font-mono text-amber-400 font-semibold tracking-wider">
                   AGUI IS THINKING...
                 </span>
               </div>
             )}
 
-            <div className="flex items-center justify-between text-[9px] text-neutral-500 mt-1.5 font-mono pt-1">
+            <div className="flex items-center justify-between text-[8px] text-neutral-500 mt-1 font-mono pt-0.5">
               <span>click for next guide step</span>
               <span className="text-amber-400 animate-pulse font-bold">▼</span>
             </div>
           </div>
 
           {/* Speech bubble pointer */}
-          <div className="w-3 h-3 bg-neutral-900 border-r-2 border-b-2 border-neutral-700/80 group-hover:border-amber-400/80 transform rotate-45 mx-auto -mt-2 transition-colors duration-200" />
+          <div className="w-2.5 h-2.5 bg-neutral-900 border-r-2 border-b-2 border-neutral-700/80 group-hover:border-amber-400/80 transform rotate-45 mx-auto -mt-1.5 transition-colors duration-200" />
         </div>
       )}
 

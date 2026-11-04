@@ -1438,7 +1438,7 @@ export default function Home() {
 
               {/* ── Welcome / empty state ─────────────────────────── */}
               {!currentSession && (
-                <div className="flex flex-col items-center justify-center min-h-full py-8 px-4 text-center">
+                <div className="flex flex-col items-center justify-start sm:justify-center min-h-full py-2 sm:py-5 px-3 sm:px-4 text-center my-auto">
                   <AguiMascot 
                     mood={mascotMood} 
                     size="lg" 
