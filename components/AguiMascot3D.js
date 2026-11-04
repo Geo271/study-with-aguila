@@ -1,27 +1,22 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
 
 /**
- * AguiMascot3D - High-Craft Interactive 2.5D/3D Mascot Engine Rig
- * Inspired by Mascot Engine (mascotengine.com) Rive character animation.
+ * AguiMascot3D - Polished, Cute, and Interactive 3D Mascot Engine Rig
+ * Built with Three.js (WebGL 60-120fps)
  * 
- * Delivers:
- * 1. Irresistibly cute and attractive character design (Chibi Philippine Eagle)
- *    - Fluffy golden-tawny crown crest, cute blush cheeks, big expressive anime/pixar eyes
- *    - Adorable smiling beak with conversational speech lip-sync
- *    - Fluffy cream chest bib, cute wings that flap/gesture, perched on wooden stump
- * 2. True volumetric 3D parallax depth:
- *    - Multi-plane 3D stage (preserve-3d, perspective 800px) with 6 distinct Z-depth planes
- *    - Head, eyes, beak, and crest rotate with natural stereoscopic parallax
- * 3. Living Locomotion & Physics:
- *    - Idle breathing kinetics & natural ocular micro-saccades
- *    - Mouse gaze tracking across 3 axes
- *    - Articulated beak flaps during AI responses (conversational lip-sync)
- *    - Secondary spring physics on crest plumage and accessory tassels
- *    - Interactive 3D drag-to-orbit with spring return
- *    - Interactive poke/hop & petting purr with blushing cheeks and floating hearts
- *    - Beautiful equipable accessories: Scholar Glasses, Graduation Cap, Lo-Fi Headphones, Royal Crown, Focus Headband
+ * Features:
+ * - Adorable Chibi Philippine Eagle 3D model (rounded head, feathery cheeks, cute blush, sparkling anime/Pixar eyes)
+ * - 3-Axis dynamic head & gaze cursor tracking with ocular parallax
+ * - Conversational lip-sync: articulated lower beak moves in speech rhythm when AI replies
+ * - Secondary spring physics on crest plumage, graduation tassel, and accessories
+ * - Organic breathing kinetics, weight shifts, and celebratory victory flaps
+ * - Interactive 3D drag-to-orbit with spring return to front
+ * - Snugly fitted 3D accessories: Scholar Glasses, Mortarboard Cap, Headphones, Royal Crown, Headband
+ * - Studio vinyl-toy lighting (Key, Fill, and glowing Golden Rim light)
+ * - Ground contact soft shadow on a carved wood stump perch
  */
 
 export default function AguiMascot3D({
@@ -37,883 +32,1017 @@ export default function AguiMascot3D({
   happyTrigger = false,
   className = '',
 }) {
-  const containerRef = useRef(null)
-  const [isBlinking, setIsBlinking] = useState(false)
-  const [mouthFlap, setMouthFlap] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragOffset, setDragOffset] = useState({ rotX: 0, rotY: 0 })
-  const [gaze, setGaze] = useState({ rotX: 0, rotY: 0, eyeX: 0, eyeY: 0 })
-  const [crestLag, setCrestLag] = useState(0)
-  const [hopY, setHopY] = useState(0)
-  const [wingFlap, setWingFlap] = useState(0)
+  const mountRef = useRef(null)
+  const [webglSupported, setWebglSupported] = useState(true)
+  const [isInteracting, setIsInteracting] = useState(false)
 
+  // Pixel sizing mapping
+  const sizePx = {
+    xs: 64,
+    sm: 110,
+    md: 160,
+    lg: 210,
+    xl: 250,
+  }[size] || 210
+
+  // Animation & control refs
   const stateRef = useRef({
-    targetRotX: 0,
+    mood,
+    accessory,
+    isTyping,
+    isInputFocused,
+    happyTrigger,
+    mouseX: 0,
+    mouseY: 0,
     targetRotY: 0,
-    currentRotX: 0,
+    targetRotX: 0,
     currentRotY: 0,
-    targetEyeX: 0,
-    targetEyeY: 0,
-    currentEyeX: 0,
-    currentEyeY: 0,
-    crestAngle: 0,
-    crestVel: 0,
+    currentRotX: 0,
+    targetPupilX: 0,
+    targetPupilY: 0,
+    currentPupilX: 0,
+    currentPupilY: 0,
+    isBlinking: false,
+    blinkProgress: 0,
+    mouthOpen: 0,
+    targetMouthOpen: 0,
     hopY: 0,
     hopVy: 0,
+    spinRotY: 0,
+    // Drag orbit controls
+    isDragging: false,
     dragStartX: 0,
     dragStartY: 0,
-    isDragging: false,
-    dragRotX: 0,
-    dragRotY: 0,
+    orbitRotY: 0,
+    orbitRotX: 0,
+    // Physics secondary lag
+    crestAngle: 0,
+    crestVelocity: 0,
+    tasselAngle: 0,
+    tasselVelocity: 0,
+    // Petting tracking
+    hoverCount: 0,
+    lastHoverTime: 0,
   })
 
-  // Size mapping in pixels
-  const sizeMap = {
-    xs: { w: 60, h: 72, scale: 0.42 },
-    sm: { w: 96, h: 114, scale: 0.65 },
-    md: { w: 140, h: 165, scale: 0.92 },
-    lg: { w: 180, h: 210, scale: 1.15 },
-    xl: { w: 220, h: 255, scale: 1.35 },
-  }
-  const currentSize = sizeMap[size] || sizeMap.lg
-
-  // ── 1. Organic Blinking Engine (Natural intervals + double blinks) ────────
+  // Keep stateRef synced with changing props
   useEffect(() => {
-    let timer
-    let closeTimer
+    stateRef.current.mood = mood
+    stateRef.current.accessory = accessory
+    stateRef.current.isTyping = isTyping
+    stateRef.current.isInputFocused = isInputFocused
+    stateRef.current.happyTrigger = happyTrigger
+  }, [mood, accessory, isTyping, isInputFocused, happyTrigger])
 
-    const scheduleNextBlink = () => {
-      const delay = 2600 + Math.random() * 3200
-      timer = setTimeout(() => {
-        setIsBlinking(true)
-        closeTimer = setTimeout(() => {
-          setIsBlinking(false)
-          // 25% chance of realistic double-blink
-          if (Math.random() < 0.28) {
-            setTimeout(() => {
-              setIsBlinking(true)
-              setTimeout(() => {
-                setIsBlinking(false)
-                scheduleNextBlink()
-              }, 110)
-            }, 140)
-          } else {
-            scheduleNextBlink()
-          }
-        }, 125)
-      }, delay)
-    }
-
-    scheduleNextBlink()
-    return () => {
-      clearTimeout(timer)
-      clearTimeout(closeTimer)
-    }
-  }, [])
-
-  // ── 2. Conversational Lip-Sync (Dynamic Beak Flap when AI replies) ────────
-  useEffect(() => {
-    if (!isTyping) {
-      setMouthFlap(0)
-      return
-    }
-
-    let flapInterval = setInterval(() => {
-      // Natural cadence: phonetic flap with occasional open vowels
-      const open = Math.random() > 0.35 ? Number((0.35 + Math.random() * 0.65).toFixed(2)) : 0
-      setMouthFlap(open)
-    }, 95)
-
-    return () => clearInterval(flapInterval)
-  }, [isTyping])
-
-  // ── 3. Hop & Squash Reaction on External Poke Trigger ────────────────────
+  // React to external squash/poke trigger
   useEffect(() => {
     if (squashTrigger > 0) {
-      stateRef.current.hopVy = 7.5
+      stateRef.current.hopVy = 0.16
     }
   }, [squashTrigger])
 
-  // ── 4. Wing Flapping in Celebration or Hop ────────────────────────────────
   useEffect(() => {
-    if (mood === 'celebrating') {
-      const interval = setInterval(() => {
-        setWingFlap(prev => (prev === 1 ? -1 : 1))
-      }, 160)
-      return () => clearInterval(interval)
-    } else {
-      setWingFlap(0)
+    const container = mountRef.current
+    if (!container) return
+
+    // ── 1. WebGL Capability Detection ───────────────────────────────────────
+    try {
+      const canvas = document.createElement('canvas')
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+      if (!gl) {
+        setWebglSupported(false)
+        return
+      }
+    } catch (e) {
+      setWebglSupported(false)
+      return
     }
-  }, [mood])
 
-  // ── 5. Mouse Gaze Tracking with Parallax & Damped Physics Loop ───────────
-  useEffect(() => {
-    if (!interactive) return
+    // ── 2. Three.js Scene, Camera, & Renderer ──────────────────────────────
+    const width = sizePx
+    const height = sizePx
 
+    const scene = new THREE.Scene()
+    // Portrait lens FOV (35 deg) for zero fish-eye and maximum cuteness
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100)
+    camera.position.set(0, 0.1, 4.9)
+
+    let renderer
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        powerPreference: 'high-performance',
+      })
+      renderer.setSize(width, height)
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+      renderer.toneMapping = THREE.ACESFilmicToneMapping
+      renderer.toneMappingExposure = 1.2
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      container.appendChild(renderer.domElement)
+    } catch (err) {
+      console.warn('WebGL init error:', err)
+      setWebglSupported(false)
+      return
+    }
+
+    // ── 3. Warm Studio Character Lighting ──────────────────────────────────
+    // Soft warm ambient base
+    const ambientLight = new THREE.AmbientLight(0xfff8ee, 1.4)
+    scene.add(ambientLight)
+
+    // Warm Key Light (top-right forward)
+    const keyLight = new THREE.DirectionalLight(0xffedd5, 1.9)
+    keyLight.position.set(2.4, 4.0, 3.2)
+    keyLight.castShadow = true
+    keyLight.shadow.mapSize.width = 512
+    keyLight.shadow.mapSize.height = 512
+    keyLight.shadow.bias = -0.001
+    scene.add(keyLight)
+
+    // Soft sky-blue bounce fill (bottom-left)
+    const fillLight = new THREE.DirectionalLight(0xbbe1fa, 0.8)
+    fillLight.position.set(-2.8, 0.6, 2.0)
+    scene.add(fillLight)
+
+    // Glorious Golden Rim Backlight (high-craft halo on feathers)
+    const rimLight = new THREE.DirectionalLight(0xfbbf24, 2.6)
+    rimLight.position.set(0, 3.2, -3.2)
+    scene.add(rimLight)
+
+    // ── 4. Stylized Cute Materials (Soft-Matte Vinyl Toy / Pixar Aesthetic) ─
+    const matPlumage = new THREE.MeshStandardMaterial({
+      color: 0x98592c, // Warm tawny chestnut
+      roughness: 0.42,
+      metalness: 0.04,
+    })
+    const matPlumageLight = new THREE.MeshStandardMaterial({
+      color: 0xb67543, // Warm golden honey
+      roughness: 0.45,
+      metalness: 0.04,
+    })
+    const matPlumageDark = new THREE.MeshStandardMaterial({
+      color: 0x5a3114, // Dark chocolate mantle
+      roughness: 0.48,
+      metalness: 0.04,
+    })
+    const matChestBib = new THREE.MeshStandardMaterial({
+      color: 0xfefcf7, // Soft fluffy ivory cream
+      roughness: 0.4,
+      metalness: 0.02,
+    })
+    const matGoldBeak = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24, // Warm golden yellow
+      roughness: 0.22,
+      metalness: 0.08,
+    })
+    const matBeakTip = new THREE.MeshStandardMaterial({
+      color: 0x475569, // Slate gray hooked tip
+      roughness: 0.35,
+    })
+    const matBeakInterior = new THREE.MeshStandardMaterial({
+      color: 0x451a03, // Mouth cavity
+      roughness: 0.7,
+    })
+    const matEyeWhite = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.08,
+    })
+    const matIris = new THREE.MeshStandardMaterial({
+      color: 0xd97706, // Deep amber honey
+      emissive: 0x78350f,
+      emissiveIntensity: 0.2,
+      roughness: 0.12,
+    })
+    const matPupil = new THREE.MeshStandardMaterial({
+      color: 0x090d16, // Obsidian black
+      roughness: 0.05,
+    })
+    const matGlint = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+    })
+    const matBlush = new THREE.MeshBasicMaterial({
+      color: 0xf87171, // Kawaii pink blush
+      transparent: true,
+      opacity: 0.65,
+    })
+    const matWoodBark = new THREE.MeshStandardMaterial({
+      color: 0x5c381e,
+      roughness: 0.7,
+    })
+    const matWoodTop = new THREE.MeshStandardMaterial({
+      color: 0x9a6538,
+      roughness: 0.55,
+    })
+
+    // ── 5. Hierarchical Character Model (Chibi Philippine Eagle) ───────────
+    const characterRoot = new THREE.Group()
+    scene.add(characterRoot)
+
+    // Dynamic ground contact shadow plane
+    const shadowGeo = new THREE.PlaneGeometry(2.3, 2.3)
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x0c0c0e,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+    })
+    const shadowPlane = new THREE.Mesh(shadowGeo, shadowMat)
+    shadowPlane.rotation.x = -Math.PI / 2
+    shadowPlane.position.y = -1.24
+    characterRoot.add(shadowPlane)
+
+    // Perch: Cute Carved Tree Stump with growth rings
+    const stumpBaseGeo = new THREE.CylinderGeometry(0.85, 0.95, 0.22, 28)
+    const stumpBase = new THREE.Mesh(stumpBaseGeo, matWoodBark)
+    stumpBase.position.y = -1.2
+    stumpBase.receiveShadow = true
+    characterRoot.add(stumpBase)
+
+    const stumpTopGeo = new THREE.CylinderGeometry(0.83, 0.83, 0.02, 28)
+    const stumpTop = new THREE.Mesh(stumpTopGeo, matWoodTop)
+    stumpTop.position.y = -1.085
+    stumpTop.receiveShadow = true
+    characterRoot.add(stumpTop)
+
+    // Golden bark ring accent
+    const stumpRingGeo = new THREE.TorusGeometry(0.84, 0.02, 12, 36)
+    const stumpRingMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.7,
+      roughness: 0.3,
+    })
+    const stumpRing = new THREE.Mesh(stumpRingGeo, stumpRingMat)
+    stumpRing.rotation.x = Math.PI / 2
+    stumpRing.position.y = -1.09
+    characterRoot.add(stumpRing)
+
+    // ── Body / Torso Group (Chubby Cute Proportions) ──
+    const bodyGroup = new THREE.Group()
+    bodyGroup.position.y = -0.52
+    characterRoot.add(bodyGroup)
+
+    // Chubby Rounded Torso
+    const torsoGeo = new THREE.SphereGeometry(0.74, 32, 28)
+    torsoGeo.scale(0.96, 1.08, 0.9)
+    const torsoMesh = new THREE.Mesh(torsoGeo, matPlumage)
+    torsoMesh.castShadow = true
+    bodyGroup.add(torsoMesh)
+
+    // Fluffy Cream Chest Bib
+    const bibGeo = new THREE.SphereGeometry(0.62, 24, 20)
+    bibGeo.scale(0.88, 1.0, 0.45)
+    const bibMesh = new THREE.Mesh(bibGeo, matChestBib)
+    bibMesh.position.set(0, -0.04, 0.46)
+    bodyGroup.add(bibMesh)
+
+    // Cute Golden Talons (Perched naturally on the stump)
+    const createTalon = (xPos) => {
+      const footGroup = new THREE.Group()
+      footGroup.position.set(xPos, -0.62, 0.25)
+      bodyGroup.add(footGroup)
+
+      const toeGeo = new THREE.CylinderGeometry(0.045, 0.065, 0.26, 10)
+      toeGeo.rotateX(Math.PI / 2.2)
+
+      const toe1 = new THREE.Mesh(toeGeo, matGoldBeak)
+      toe1.position.set(-0.08, 0, 0)
+      toe1.rotation.y = -0.25
+      footGroup.add(toe1)
+
+      const toe2 = new THREE.Mesh(toeGeo, matGoldBeak)
+      toe2.position.set(0, 0, 0.03)
+      footGroup.add(toe2)
+
+      const toe3 = new THREE.Mesh(toeGeo, matGoldBeak)
+      toe3.position.set(0.08, 0, 0)
+      toe3.rotation.y = 0.25
+      footGroup.add(toe3)
+    }
+    createTalon(-0.28)
+    createTalon(0.28)
+
+    // Tail Feathers Group
+    const tailGroup = new THREE.Group()
+    tailGroup.position.set(0, -0.58, -0.58)
+    bodyGroup.add(tailGroup)
+
+    const tailGeo = new THREE.BoxGeometry(0.42, 0.08, 0.62)
+    tailGeo.translate(0, 0, -0.26)
+    const tailMesh = new THREE.Mesh(tailGeo, matPlumageDark)
+    tailMesh.rotation.x = -0.32
+    tailGroup.add(tailMesh)
+
+    // ── Articulated Wings (Cute rounded paddles) ──
+    const wingGeo = new THREE.ConeGeometry(0.36, 0.95, 18)
+    wingGeo.scale(0.32, 1.0, 0.75)
+    wingGeo.rotateZ(Math.PI)
+    wingGeo.translate(0, -0.36, 0)
+
+    const leftWingGroup = new THREE.Group()
+    leftWingGroup.position.set(-0.72, 0.12, 0)
+    bodyGroup.add(leftWingGroup)
+    const leftWingMesh = new THREE.Mesh(wingGeo, matPlumageDark)
+    leftWingMesh.castShadow = true
+    leftWingGroup.add(leftWingMesh)
+
+    const rightWingGroup = new THREE.Group()
+    rightWingGroup.position.set(0.72, 0.12, 0)
+    bodyGroup.add(rightWingGroup)
+    const rightWingMesh = new THREE.Mesh(wingGeo, matPlumageDark)
+    rightWingMesh.castShadow = true
+    rightWingGroup.add(rightWingMesh)
+
+    // Study Mode Accessory: Cute Red Study Book
+    const bookGroup = new THREE.Group()
+    bookGroup.position.set(0, -0.22, 0.62)
+    bookGroup.rotation.x = -0.4
+    bodyGroup.add(bookGroup)
+
+    const bookCoverMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 })
+    const bookCoverGeo = new THREE.BoxGeometry(0.65, 0.48, 0.08)
+    const bookCover = new THREE.Mesh(bookCoverGeo, bookCoverMat)
+    bookGroup.add(bookCover)
+
+    const bookPagesMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.3 })
+    const bookPagesGeo = new THREE.BoxGeometry(0.62, 0.45, 0.06)
+    const bookPages = new THREE.Mesh(bookPagesGeo, bookPagesMat)
+    bookPages.position.z = 0.015
+    bookGroup.add(bookPages)
+
+    // ── Head Group (Large, Rounded, Chibi Cute Head) ──
+    const headGroup = new THREE.Group()
+    headGroup.position.set(0, 0.58, 0.06)
+    bodyGroup.add(headGroup)
+
+    // Head Skull Mesh (Smooth cute sphere)
+    const headGeo = new THREE.SphereGeometry(0.75, 32, 28)
+    headGeo.scale(1.05, 0.98, 1.02)
+    const headMesh = new THREE.Mesh(headGeo, matPlumage)
+    headMesh.castShadow = true
+    headGroup.add(headMesh)
+
+    // Cheeks: Soft rounded feather cheeks
+    const cheekGeo = new THREE.SphereGeometry(0.35, 18, 14)
+    cheekGeo.scale(1.0, 0.8, 0.7)
+
+    const leftCheek = new THREE.Mesh(cheekGeo, matPlumageLight)
+    leftCheek.position.set(-0.48, -0.16, 0.32)
+    headGroup.add(leftCheek)
+
+    const rightCheek = new THREE.Mesh(cheekGeo, matPlumageLight)
+    rightCheek.position.set(0.48, -0.16, 0.32)
+    headGroup.add(rightCheek)
+
+    // Kawaii Pink Blush Discs
+    const blushGeo = new THREE.CircleGeometry(0.12, 18)
+    const leftBlush = new THREE.Mesh(blushGeo, matBlush)
+    leftBlush.position.set(-0.46, -0.14, 0.62)
+    leftBlush.rotation.y = -0.35
+    headGroup.add(leftBlush)
+
+    const rightBlush = new THREE.Mesh(blushGeo, matBlush)
+    rightBlush.position.set(0.46, -0.14, 0.62)
+    rightBlush.rotation.y = 0.35
+    headGroup.add(rightBlush)
+
+    // ── Philippine Eagle Iconic Feather Crest Plumes (Crown of Feathers) ──
+    const crestGroup = new THREE.Group()
+    crestGroup.position.set(0, 0.54, -0.15)
+    headGroup.add(crestGroup)
+
+    // Radiating fan of 5 soft plumes with spring damping
+    const plumeAngles = [-0.48, -0.22, 0, 0.22, 0.48]
+    plumeAngles.forEach((angle, idx) => {
+      const plumeGeo = new THREE.ConeGeometry(0.13, 0.62 - Math.abs(angle) * 0.18, 10)
+      plumeGeo.scale(0.35, 1.0, 0.75)
+      plumeGeo.translate(0, 0.28, 0)
+      const plumeMesh = new THREE.Mesh(plumeGeo, idx % 2 === 0 ? matPlumageLight : matPlumage)
+      plumeMesh.rotation.z = angle
+      plumeMesh.rotation.x = -0.42 - Math.abs(angle) * 0.12
+      crestGroup.add(plumeMesh)
+    })
+
+    // ── Cute Beak Assembly with Conversational Speech Lip-Sync ──
+    const beakGroup = new THREE.Group()
+    beakGroup.position.set(0, -0.08, 0.68)
+    headGroup.add(beakGroup)
+
+    // Upper Cute Raptor Beak
+    const upperBeakGeo = new THREE.ConeGeometry(0.18, 0.42, 18)
+    upperBeakGeo.scale(0.85, 1.0, 0.9)
+    upperBeakGeo.rotateX(Math.PI / 2.3)
+    upperBeakGeo.translate(0, 0.02, 0.16)
+    const upperBeakMesh = new THREE.Mesh(upperBeakGeo, matGoldBeak)
+    upperBeakMesh.castShadow = true
+    beakGroup.add(upperBeakMesh)
+
+    // Hooked tip
+    const tipGeo = new THREE.ConeGeometry(0.09, 0.22, 14)
+    tipGeo.rotateX(Math.PI / 2.1)
+    tipGeo.translate(0, -0.04, 0.28)
+    const tipMesh = new THREE.Mesh(tipGeo, matBeakTip)
+    beakGroup.add(tipMesh)
+
+    // Lower Beak / Jaw (Pivot for speech lip-sync!)
+    const lowerBeakGroup = new THREE.Group()
+    lowerBeakGroup.position.set(0, -0.11, 0.12)
+    beakGroup.add(lowerBeakGroup)
+
+    const lowerBeakGeo = new THREE.ConeGeometry(0.13, 0.28, 14)
+    lowerBeakGeo.scale(0.75, 1.0, 0.8)
+    lowerBeakGeo.rotateX(Math.PI / 2.1)
+    lowerBeakGeo.translate(0, -0.02, 0.1)
+    const lowerBeakMesh = new THREE.Mesh(lowerBeakGeo, matGoldBeak)
+    lowerBeakGroup.add(lowerBeakMesh)
+
+    // Inner mouth cavity
+    const mouthCavityGeo = new THREE.SphereGeometry(0.09, 10, 8)
+    mouthCavityGeo.scale(0.8, 0.45, 0.8)
+    const mouthCavityMesh = new THREE.Mesh(mouthCavityGeo, matBeakInterior)
+    mouthCavityMesh.position.set(0, 0, 0.08)
+    lowerBeakGroup.add(mouthCavityMesh)
+
+    // ── Big Expressive Anime/Pixar Eyes with Specular Glints ──
+    const eyeSpacing = 0.29
+    const eyeHeight = 0.08
+    const eyeDepth = 0.64
+
+    const createEyeAssembly = (isRight = false) => {
+      const eyeAssembly = new THREE.Group()
+      const xPos = isRight ? eyeSpacing : -eyeSpacing
+      eyeAssembly.position.set(xPos, eyeHeight, eyeDepth)
+      headGroup.add(eyeAssembly)
+
+      // Slight forward raptor angle
+      eyeAssembly.rotation.y = isRight ? 0.18 : -0.18
+
+      // Sclera (Eye White Sphere)
+      const eyeWhiteGeo = new THREE.SphereGeometry(0.175, 24, 20)
+      const eyeWhite = new THREE.Mesh(eyeWhiteGeo, matEyeWhite)
+      eyeAssembly.add(eyeWhite)
+
+      // Large Amber Iris
+      const irisGeo = new THREE.SphereGeometry(0.135, 20, 16)
+      const irisMesh = new THREE.Mesh(irisGeo, matIris)
+      irisMesh.position.set(0, 0, 0.07)
+      eyeAssembly.add(irisMesh)
+
+      // Deep Obsidian Pupil
+      const pupilGeo = new THREE.SphereGeometry(0.092, 16, 12)
+      const pupilMesh = new THREE.Mesh(pupilGeo, matPupil)
+      pupilMesh.position.set(0, 0, 0.11)
+      eyeAssembly.add(pupilMesh)
+
+      // Primary Specular Catchlight (Top-Left)
+      const glintGeo = new THREE.SphereGeometry(0.038, 10, 8)
+      const glintMesh = new THREE.Mesh(glintGeo, matGlint)
+      glintMesh.position.set(-0.032, 0.045, 0.155)
+      eyeAssembly.add(glintMesh)
+
+      // Secondary Micro Sparkle (Bottom-Right)
+      const microGlintGeo = new THREE.SphereGeometry(0.018, 8, 6)
+      const microGlint = new THREE.Mesh(microGlintGeo, matGlint)
+      microGlint.position.set(0.035, -0.032, 0.155)
+      eyeAssembly.add(microGlint)
+
+      // Dynamic Eyelid (Rotates down for natural organic blinks)
+      const eyelidGeo = new THREE.SphereGeometry(0.188, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2)
+      const eyelidMesh = new THREE.Mesh(eyelidGeo, matPlumage)
+      eyelidMesh.rotation.x = -Math.PI / 2 // Hidden above eye when open
+      eyeAssembly.add(eyelidMesh)
+
+      // Brow Tuft
+      const browGeo = new THREE.BoxGeometry(0.24, 0.055, 0.14)
+      const browMesh = new THREE.Mesh(browGeo, matPlumageDark)
+      browMesh.position.set(0, 0.16, 0.05)
+      browMesh.rotation.z = isRight ? -0.12 : 0.12
+      eyeAssembly.add(browMesh)
+
+      return {
+        assembly: eyeAssembly,
+        iris: irisMesh,
+        pupil: pupilMesh,
+        eyelid: eyelidMesh,
+        brow: browMesh,
+      }
+    }
+
+    const leftEye = createEyeAssembly(false)
+    const rightEye = createEyeAssembly(true)
+
+    // ── 6. Snugly Fitted 3D Accessories ────────────────────────────────────
+    const accessoriesGroup = new THREE.Group()
+    headGroup.add(accessoriesGroup)
+
+    // 1. Scholar Glasses (Snug on beak bridge)
+    const glassesGroup = new THREE.Group()
+    glassesGroup.position.set(0, 0.08, 0.74)
+    accessoriesGroup.add(glassesGroup)
+
+    const glassFrameMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.9,
+      roughness: 0.18,
+    })
+    const glassLensMat = new THREE.MeshPhysicalMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.28,
+      roughness: 0.1,
+      transmission: 0.85,
+    })
+
+    const rimGeo = new THREE.TorusGeometry(0.16, 0.018, 12, 28)
+    const leftRim = new THREE.Mesh(rimGeo, glassFrameMat)
+    leftRim.position.set(-0.29, 0, 0)
+    glassesGroup.add(leftRim)
+
+    const lensGeo = new THREE.CircleGeometry(0.15, 24)
+    const leftLens = new THREE.Mesh(lensGeo, glassLensMat)
+    leftLens.position.set(-0.29, 0, 0.01)
+    glassesGroup.add(leftLens)
+
+    const rightRim = new THREE.Mesh(rimGeo, glassFrameMat)
+    rightRim.position.set(0.29, 0, 0)
+    glassesGroup.add(rightRim)
+
+    const rightLens = new THREE.Mesh(lensGeo, glassLensMat)
+    rightLens.position.set(0.29, 0, 0.01)
+    glassesGroup.add(rightLens)
+
+    const bridgeGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.28, 8)
+    const bridgeMesh = new THREE.Mesh(bridgeGeo, glassFrameMat)
+    bridgeMesh.rotation.z = Math.PI / 2
+    bridgeMesh.position.set(0, 0.02, 0.02)
+    glassesGroup.add(bridgeMesh)
+
+    // 2. Graduation Cap (Level & snug on head with swinging tassel)
+    const capGroup = new THREE.Group()
+    capGroup.position.set(0, 0.74, 0.02)
+    accessoriesGroup.add(capGroup)
+
+    const capMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.4 })
+    const mortarboardGeo = new THREE.BoxGeometry(1.05, 0.045, 1.05)
+    mortarboardGeo.rotateY(Math.PI / 4)
+    const mortarboardMesh = new THREE.Mesh(mortarboardGeo, capMat)
+    capGroup.add(mortarboardMesh)
+
+    const skullCapGeo = new THREE.CylinderGeometry(0.42, 0.46, 0.18, 24)
+    const skullCapMesh = new THREE.Mesh(skullCapGeo, capMat)
+    skullCapMesh.position.y = -0.09
+    capGroup.add(skullCapMesh)
+
+    const tasselBtnGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.04, 12)
+    const tasselBtn = new THREE.Mesh(tasselBtnGeo, matGoldBeak)
+    tasselBtn.position.y = 0.03
+    capGroup.add(tasselBtn)
+
+    const tasselPivot = new THREE.Group()
+    tasselPivot.position.set(0.18, 0.03, 0.18)
+    capGroup.add(tasselPivot)
+
+    const tasselStringGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.42, 8)
+    tasselStringGeo.translate(0, -0.21, 0)
+    const tasselString = new THREE.Mesh(tasselStringGeo, matGoldBeak)
+    tasselPivot.add(tasselString)
+
+    const tasselEndGeo = new THREE.ConeGeometry(0.055, 0.14, 8)
+    tasselEndGeo.translate(0, -0.42, 0)
+    const tasselEnd = new THREE.Mesh(tasselEndGeo, matGoldBeak)
+    tasselPivot.add(tasselEnd)
+
+    // 3. Lo-Fi Headphones (Hugging cheeks)
+    const headphonesGroup = new THREE.Group()
+    headphonesGroup.position.set(0, 0.32, 0)
+    accessoriesGroup.add(headphonesGroup)
+
+    const hpBandGeo = new THREE.TorusGeometry(0.74, 0.038, 12, 32, Math.PI)
+    const hpBandMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 })
+    const hpBand = new THREE.Mesh(hpBandGeo, hpBandMat)
+    hpBand.rotation.z = -Math.PI / 2
+    headphonesGroup.add(hpBand)
+
+    const earcupMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6 })
+    const earcupGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.12, 20)
+    earcupGeo.rotateZ(Math.PI / 2)
+
+    const leftEarcup = new THREE.Mesh(earcupGeo, earcupMat)
+    leftEarcup.position.set(-0.74, 0, 0)
+    headphonesGroup.add(leftEarcup)
+
+    const rightEarcup = new THREE.Mesh(earcupGeo, earcupMat)
+    rightEarcup.position.set(0.74, 0, 0)
+    headphonesGroup.add(rightEarcup)
+
+    // 4. Royal Honor Crown (Snug, level atop head)
+    const crownGroup = new THREE.Group()
+    crownGroup.position.set(0, 0.74, 0)
+    accessoriesGroup.add(crownGroup)
+
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      metalness: 0.85,
+      roughness: 0.2,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.15,
+    })
+    const crownBaseGeo = new THREE.CylinderGeometry(0.48, 0.50, 0.12, 24, 1, true)
+    const crownBase = new THREE.Mesh(crownBaseGeo, crownMat)
+    crownGroup.add(crownBase)
+
+    // 5 Crown Peaks with ruby & sapphire jewels
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2
+      const peakGeo = new THREE.ConeGeometry(0.1, 0.28, 8)
+      const peakMesh = new THREE.Mesh(peakGeo, crownMat)
+      peakMesh.position.set(Math.cos(angle) * 0.48, 0.19, Math.sin(angle) * 0.48)
+      crownGroup.add(peakMesh)
+
+      const jewelGeo = new THREE.DodecahedronGeometry(0.04)
+      const jewelMat = new THREE.MeshStandardMaterial({
+        color: i % 2 === 0 ? 0xef4444 : 0x3b82f6,
+        roughness: 0.1,
+        metalness: 0.4,
+        emissive: i % 2 === 0 ? 0xb91c1c : 0x1d4ed8,
+        emissiveIntensity: 0.5,
+      })
+      const jewelMesh = new THREE.Mesh(jewelGeo, jewelMat)
+      jewelMesh.position.set(Math.cos(angle) * 0.49, 0.02, Math.sin(angle) * 0.49)
+      crownGroup.add(jewelMesh)
+    }
+
+    // 5. Martial Arts Headband
+    const headbandGroup = new THREE.Group()
+    headbandGroup.position.set(0, 0.24, 0.06)
+    accessoriesGroup.add(headbandGroup)
+
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.6 })
+    const bandGeo = new THREE.TorusGeometry(0.72, 0.045, 12, 32)
+    const bandMesh = new THREE.Mesh(bandGeo, bandMat)
+    bandMesh.rotation.x = Math.PI / 2
+    headbandGroup.add(bandMesh)
+
+    const ribbonGeo = new THREE.BoxGeometry(0.08, 0.42, 0.02)
+    ribbonGeo.translate(0, -0.19, 0)
+    const leftRibbon = new THREE.Mesh(ribbonGeo, bandMat)
+    leftRibbon.position.set(-0.14, -0.04, -0.72)
+    leftRibbon.rotation.x = 0.38
+    leftRibbon.rotation.y = -0.18
+    headbandGroup.add(leftRibbon)
+
+    const rightRibbon = new THREE.Mesh(ribbonGeo, bandMat)
+    rightRibbon.position.set(0.14, -0.04, -0.72)
+    rightRibbon.rotation.x = 0.28
+    rightRibbon.rotation.y = 0.18
+    headbandGroup.add(rightRibbon)
+
+    const updateAccessoriesVisibility = (acc) => {
+      glassesGroup.visible = acc === 'glasses'
+      capGroup.visible = acc === 'cap'
+      headphonesGroup.visible = acc === 'headphones'
+      crownGroup.visible = acc === 'crown'
+      headbandGroup.visible = acc === 'headband'
+    }
+    updateAccessoriesVisibility(accessory)
+
+    // ── 7. Organic Blinking Engine (Natural timing + double blinks) ─────────
+    let blinkTimer = null
+    const triggerBlink = () => {
+      stateRef.current.isBlinking = true
+      stateRef.current.blinkProgress = 0
+
+      const nextDelay = 2600 + Math.random() * 3200
+      blinkTimer = setTimeout(() => {
+        triggerBlink()
+        if (Math.random() < 0.25) {
+          setTimeout(() => {
+            stateRef.current.isBlinking = true
+            stateRef.current.blinkProgress = 0
+          }, 220)
+        }
+      }, nextDelay)
+    }
+    blinkTimer = setTimeout(triggerBlink, 2000)
+
+    // ── 8. Conversational Lip-Sync Movement (Speech Beak Flap) ─────────────
+    let flapInterval = null
+    const syncLipMovement = () => {
+      if (stateRef.current.isTyping) {
+        stateRef.current.targetMouthOpen = Math.random() > 0.32 ? 0.35 + Math.random() * 0.55 : 0
+      } else {
+        stateRef.current.targetMouthOpen = 0
+      }
+    }
+    flapInterval = setInterval(syncLipMovement, 90)
+
+    // ── 9. Interactive Mouse Gaze & Orbit Drag Controls ─────────────────────
     const handlePointerMove = (e) => {
       const state = stateRef.current
       if (state.isDragging) {
-        const dx = e.clientX - state.dragStartX
-        const dy = e.clientY - state.dragStartY
-        state.dragRotY = Math.max(-45, Math.min(45, state.dragRotY + dx * 0.4))
-        state.dragRotX = Math.max(-25, Math.min(25, state.dragRotX - dy * 0.3))
+        const deltaX = e.clientX - state.dragStartX
+        const deltaY = e.clientY - state.dragStartY
+        state.orbitRotY += deltaX * 0.008
+        state.orbitRotX = Math.max(-0.45, Math.min(0.45, state.orbitRotX + deltaY * 0.006))
         state.dragStartX = e.clientX
         state.dragStartY = e.clientY
-        setDragOffset({ rotX: state.dragRotX, rotY: state.dragRotY })
         return
       }
 
-      if (!containerRef.current) return
-      const rect = containerRef.current.getBoundingClientRect()
+      const rect = renderer.domElement.getBoundingClientRect()
       const centerX = rect.left + rect.width / 2
-      const centerY = rect.top + rect.height * 0.45
+      const centerY = rect.top + rect.height / 2
 
       const nx = (e.clientX - centerX) / (window.innerWidth / 2)
       const ny = (e.clientY - centerY) / (window.innerHeight / 2)
 
-      // Target head 3D rotation angles (clamped for natural raptor gaze)
-      let targetRotY = Math.max(-18, Math.min(18, nx * 18))
-      let targetRotX = Math.max(-14, Math.min(14, -ny * 14))
+      state.mouseX = nx
+      state.mouseY = ny
 
-      // Pupil ocular displacement (mm in SVG coordinate space)
-      let targetEyeX = Math.max(-3.5, Math.min(3.5, nx * 3.5))
-      let targetEyeY = Math.max(-2.8, Math.min(2.8, ny * 2.8))
+      state.targetRotY = Math.max(-0.55, Math.min(0.55, nx * 0.65))
+      state.targetRotX = Math.max(-0.38, Math.min(0.38, -ny * 0.48))
 
-      if (isInputFocused) {
-        targetRotX = -10 // Look down at keyboard/chat input
-        targetEyeY = 3.2
-      } else if (isTyping || mood === 'thinking') {
-        targetRotX = 8 // Tilt up into deep thought
-        targetRotY = 6
-        targetEyeY = -2.8
-        targetEyeX = 2.2
+      state.targetPupilX = Math.max(-0.055, Math.min(0.055, nx * 0.06))
+      state.targetPupilY = Math.max(-0.04, Math.min(0.04, -ny * 0.045))
+
+      if (state.isInputFocused) {
+        state.targetRotX = -0.28
+        state.targetPupilY = -0.04
       }
 
-      state.targetRotX = targetRotX
-      state.targetRotY = targetRotY
-      state.targetEyeX = targetEyeX
-      state.targetEyeY = targetEyeY
+      if (state.mood === 'thinking' || state.isTyping) {
+        state.targetRotX += 0.12
+        state.targetRotY += 0.1
+      }
+    }
+
+    const handlePointerDown = (e) => {
+      if (!interactive) return
+      stateRef.current.isDragging = true
+      stateRef.current.dragStartX = e.clientX
+      stateRef.current.dragStartY = e.clientY
+      setIsInteracting(true)
     }
 
     const handlePointerUp = () => {
       stateRef.current.isDragging = false
-      setIsDragging(false)
+      setIsInteracting(false)
+    }
+
+    const handlePointerLeave = () => {
+      stateRef.current.isDragging = false
+      setIsInteracting(false)
+      stateRef.current.targetRotY = 0
+      stateRef.current.targetRotX = 0
+      stateRef.current.targetPupilX = 0
+      stateRef.current.targetPupilY = 0
     }
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('pointerup', handlePointerUp)
 
-    // Animation loop (RAF) for ultra-smooth spring damping & secondary inertia
-    let rafId
-    let lastTime = performance.now()
+    const domEl = renderer.domElement
+    domEl.addEventListener('pointerdown', handlePointerDown)
+    domEl.addEventListener('pointerleave', handlePointerLeave)
 
-    const updatePhysics = (now) => {
-      rafId = requestAnimationFrame(updatePhysics)
-      const dt = Math.min((now - lastTime) / 1000, 0.05)
-      lastTime = now
+    // ── 10. Main Animation Loop (60-120fps RAF) ─────────────────────────────
+    let animationFrameId
+    let clock = new THREE.Clock()
+
+    const animate = () => {
+      animationFrameId = requestAnimationFrame(animate)
+
+      const delta = Math.min(clock.getDelta(), 0.1)
+      const time = clock.getElapsedTime()
       const state = stateRef.current
 
-      // 1. Smooth Head & Eye Gaze Slerp
-      state.currentRotX += (state.targetRotX - state.currentRotX) * 0.12
-      state.currentRotY += (state.targetRotY - state.currentRotY) * 0.12
-      state.currentEyeX += (state.targetEyeX - state.currentEyeX) * 0.18
-      state.currentEyeY += (state.targetEyeY - state.currentEyeY) * 0.18
+      updateAccessoriesVisibility(state.accessory)
 
-      // 2. Return drag rotation smoothly back to 0 when released
-      if (!state.isDragging) {
-        state.dragRotX += (0 - state.dragRotX) * 0.08
-        state.dragRotY += (0 - state.dragRotY) * 0.08
-        setDragOffset({ rotX: state.dragRotX, rotY: state.dragRotY })
-      }
+      // Book visibility in study mood
+      bookGroup.visible = state.mood === 'studying'
 
-      // 3. Crest Secondary Spring Physics (lag behind head rotation)
-      const crestTarget = -state.currentRotY * 0.65
-      const crestForce = (crestTarget - state.crestAngle) * 32
-      state.crestVel = (state.crestVel + crestForce * dt) * 0.88
-      state.crestAngle += state.crestVel * dt
-      setCrestLag(state.crestAngle)
+      // 1. Organic Breathing Kinetics
+      const breathSpeed = state.mood === 'timer' ? 1.6 : (state.mood === 'celebrating' ? 4.2 : 2.5)
+      const breathWave = Math.sin(time * breathSpeed)
+      const breathScale = 1 + breathWave * 0.024
+      torsoMesh.scale.set(0.96 * breathScale, 1.08 * breathScale, 0.9 * breathScale)
+      bibMesh.scale.set(0.88 * breathScale, 1.0 * breathScale, 0.45 * breathScale)
 
-      // 4. Hop Kinematics
+      // 2. Hop / Squash Physics
       if (state.hopVy !== 0 || state.hopY > 0) {
         state.hopY += state.hopVy
-        state.hopVy -= 0.65 // gravity
+        state.hopVy -= 0.015
+
         if (state.hopY <= 0) {
           state.hopY = 0
           state.hopVy = 0
         }
-        setHopY(state.hopY)
       }
 
-      setGaze({
-        rotX: state.currentRotX,
-        rotY: state.currentRotY,
-        eyeX: state.currentEyeX,
-        eyeY: state.currentEyeY,
-      })
+      // Idle gentle weight shift
+      const weightShift = Math.sin(time * 0.8) * 0.035
+      const bobY = Math.sin(time * breathSpeed) * 0.03
+
+      characterRoot.position.y = state.hopY + bobY
+
+      const shadowScale = Math.max(0.65, 1 - state.hopY * 0.5)
+      shadowPlane.scale.set(shadowScale, shadowScale, shadowScale)
+      shadowMat.opacity = Math.max(0.2, 0.45 - state.hopY * 0.22)
+
+      // 3. Smooth Gaze Damping
+      state.currentRotY += (state.targetRotY - state.currentRotY) * 0.11
+      state.currentRotX += (state.targetRotX - state.currentRotX) * 0.11
+
+      state.currentPupilX += (state.targetPupilX - state.currentPupilX) * 0.16
+      state.currentPupilY += (state.targetPupilY - state.currentPupilY) * 0.16
+
+      // Spring drag back to center
+      if (!state.isDragging) {
+        state.orbitRotY += (0 - state.orbitRotY) * 0.07
+        state.orbitRotX += (0 - state.orbitRotX) * 0.07
+      }
+
+      // 4. Wing Motions per Mood
+      if (state.mood === 'celebrating') {
+        state.spinRotY += delta * 3.2
+        leftWingGroup.rotation.z = Math.sin(time * 12) * 0.65 - 0.35
+        rightWingGroup.rotation.z = -Math.sin(time * 12) * 0.65 + 0.35
+      } else if (state.mood === 'studying') {
+        state.spinRotY += (0 - state.spinRotY) * 0.1
+        leftWingGroup.rotation.z = 0.22
+        rightWingGroup.rotation.z = -0.22
+        leftWingGroup.rotation.x = 0.32
+        rightWingGroup.rotation.x = 0.32
+      } else {
+        state.spinRotY += (0 - state.spinRotY) * 0.08
+        leftWingGroup.rotation.z = Math.sin(time * breathSpeed) * 0.04
+        rightWingGroup.rotation.z = -Math.sin(time * breathSpeed) * 0.04
+        leftWingGroup.rotation.x = 0
+        rightWingGroup.rotation.x = 0
+      }
+
+      characterRoot.rotation.y = state.orbitRotY + state.spinRotY + weightShift
+      characterRoot.rotation.x = state.orbitRotX
+      characterRoot.rotation.z = -weightShift * 0.35
+
+      // Head Gaze & Conversational Nod
+      const conversationalNod = state.isTyping ? Math.sin(time * 9) * 0.035 : 0
+      headGroup.rotation.y = state.currentRotY
+      headGroup.rotation.x = state.currentRotX + conversationalNod
+      headGroup.rotation.z = state.currentRotY * 0.16
+
+      // 5. Secondary Crest & Tassel Physics
+      const crestTarget = -state.currentRotY * 0.32
+      const crestForce = (crestTarget - state.crestAngle) * 32
+      state.crestVelocity = (state.crestVelocity + crestForce * delta) * 0.88
+      state.crestAngle += state.crestVelocity * delta
+      crestGroup.rotation.y = state.crestAngle
+      crestGroup.rotation.z = state.crestAngle * 0.22
+
+      const tasselForce = (-state.currentRotY * 0.7 - state.tasselAngle) * 28
+      state.tasselVelocity = (state.tasselVelocity + tasselForce * delta) * 0.88
+      state.tasselAngle += state.tasselVelocity * delta
+      tasselPivot.rotation.z = state.tasselAngle
+
+      // 6. Pupil Gaze Displacement
+      leftEye.iris.position.x = state.currentPupilX
+      leftEye.iris.position.y = state.currentPupilY
+      leftEye.pupil.position.x = state.currentPupilX * 1.12
+      leftEye.pupil.position.y = state.currentPupilY * 1.12
+
+      rightEye.iris.position.x = state.currentPupilX
+      rightEye.iris.position.y = state.currentPupilY
+      rightEye.pupil.position.x = state.currentPupilX * 1.12
+      rightEye.pupil.position.y = state.currentPupilY * 1.12
+
+      // 7. Dynamic Blinking & Happy Squint
+      const isHappy = state.happyTrigger || state.mood === 'celebrating'
+      if (isHappy) {
+        leftEye.eyelid.rotation.x = -0.22
+        rightEye.eyelid.rotation.x = -0.22
+        leftEye.brow.rotation.z = -0.28
+        rightEye.brow.rotation.z = 0.28
+      } else if (state.isBlinking) {
+        state.blinkProgress += delta * 18
+        if (state.blinkProgress >= Math.PI) {
+          state.isBlinking = false
+          leftEye.eyelid.rotation.x = -Math.PI / 2
+          rightEye.eyelid.rotation.x = -Math.PI / 2
+        } else {
+          const blinkRot = -Math.PI / 2 + Math.sin(state.blinkProgress) * 1.6
+          leftEye.eyelid.rotation.x = blinkRot
+          rightEye.eyelid.rotation.x = blinkRot
+        }
+      } else {
+        leftEye.eyelid.rotation.x = -Math.PI / 2
+        rightEye.eyelid.rotation.x = -Math.PI / 2
+
+        if (state.mood === 'studying') {
+          leftEye.brow.rotation.z = 0.26
+          rightEye.brow.rotation.z = -0.26
+        } else if (state.mood === 'thinking') {
+          leftEye.brow.rotation.z = -0.1
+          rightEye.brow.rotation.z = -0.32
+        } else {
+          leftEye.brow.rotation.z = 0.12
+          rightEye.brow.rotation.z = -0.12
+        }
+      }
+
+      // 8. Conversational Lip-Sync Movement (Beak Flap)
+      state.mouthOpen += (state.targetMouthOpen - state.mouthOpen) * 0.32
+      lowerBeakGroup.rotation.x = state.mouthOpen * 0.42
+
+      renderer.render(scene, camera)
     }
 
-    rafId = requestAnimationFrame(updatePhysics)
+    animate()
 
+    // ── 11. Cleanup on Unmount ──────────────────────────────────────────────
     return () => {
-      cancelAnimationFrame(rafId)
+      cancelAnimationFrame(animationFrameId)
+      clearTimeout(blinkTimer)
+      clearInterval(flapInterval)
+
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [interactive, isInputFocused, isTyping, mood])
+      domEl.removeEventListener('pointerdown', handlePointerDown)
+      domEl.removeEventListener('pointerleave', handlePointerLeave)
 
-  // Drag start handler
-  const handlePointerDown = (e) => {
-    if (!interactive) return
-    stateRef.current.isDragging = true
-    stateRef.current.dragStartX = e.clientX
-    stateRef.current.dragStartY = e.clientY
-    setIsDragging(true)
+      if (renderer) {
+        renderer.dispose()
+        if (domEl && domEl.parentNode) {
+          domEl.parentNode.removeChild(domEl)
+        }
+      }
+
+      scene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose()
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m.dispose())
+          } else {
+            obj.material.dispose()
+          }
+        }
+      })
+    }
+  }, [sizePx, interactive])
+
+  const handleClick = (e) => {
+    if (onPoke) {
+      onPoke(e)
+    }
   }
 
-  // Combined 3D Rotation
-  const totalRotX = gaze.rotX + dragOffset.rotX
-  const totalRotY = gaze.rotY + dragOffset.rotY
-  const showHappyEyes = happyTrigger || mood === 'celebrating'
+  const handlePointerEnter = () => {
+    const now = Date.now()
+    const state = stateRef.current
+    if (now - state.lastHoverTime < 450) {
+      state.hoverCount += 1
+    } else {
+      state.hoverCount = 1
+    }
+    state.lastHoverTime = now
+
+    if (state.hoverCount >= 3) {
+      state.hoverCount = 0
+      if (onPet) onPet()
+    }
+  }
+
+  if (!webglSupported) {
+    return (
+      <div className={`relative flex items-center justify-center ${className}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/mascot-idle.png"
+          alt="Agui Mascot 2D Fallback"
+          width={sizePx}
+          height={sizePx}
+          className="object-contain"
+        />
+      </div>
+    )
+  }
 
   return (
     <div
-      ref={containerRef}
-      onPointerDown={handlePointerDown}
-      onClick={onPoke}
-      className={`relative inline-flex flex-col items-center justify-center select-none cursor-pointer ${className}`}
+      className={`relative inline-flex flex-col items-center justify-center select-none ${className}`}
+      onClick={handleClick}
+      onPointerEnter={handlePointerEnter}
+      title="Agui 3D Mascot - drag to rotate in 3D, click to interact, pet to purr"
       style={{
-        width: `${currentSize.w}px`,
-        height: `${currentSize.h}px`,
-        perspective: '800px',
-        touchAction: 'none',
+        width: `${sizePx}px`,
+        height: `${sizePx}px`,
+        cursor: isInteracting ? 'grabbing' : 'grab',
       }}
-      title="Agui Mascot - drag to rotate in 3D, click to poke, pet to purr"
     >
-      {/* ── Volumetric 3D Mascot Stage (Multi-Plane Parallax) ──────────── */}
       <div
-        className="relative w-full h-full flex items-center justify-center transition-transform duration-75 ease-out"
-        style={{
-          transformStyle: 'preserve-3d',
-          transform: `translateY(${-hopY}px) rotateX(${totalRotX * 0.8}deg) rotateY(${totalRotY * 0.9}deg)`,
-        }}
-      >
-        {/* ── Plane -3 (Z: -28px): Dynamic Ground Shadow ── */}
-        <div
-          className="absolute -bottom-2 w-[72%] h-4 bg-neutral-950/70 rounded-[50%] blur-[3px] pointer-events-none transition-transform duration-75"
-          style={{
-            transform: `translateZ(-28px) scale(${Math.max(0.65, 1 - hopY * 0.04)})`,
-            opacity: Math.max(0.2, 0.7 - hopY * 0.03),
-          }}
-        />
-
-        {/* ── Plane -2 (Z: -16px): Carved Tree Stump Perch ── */}
-        <div
-          className="absolute -bottom-1 pointer-events-none"
-          style={{ transform: 'translateZ(-16px)' }}
-        >
-          <svg width="110" height="32" viewBox="0 0 110 32" fill="none">
-            {/* Stump base */}
-            <path
-              d="M 15 12 L 20 28 Q 55 31 90 28 L 95 12 Z"
-              fill="#5c381e"
-              stroke="#3a2211"
-              strokeWidth="1.5"
-            />
-            {/* Bark texture grooves */}
-            <path d="M 32 14 L 35 27 M 55 14 L 55 29 M 76 14 L 74 27" stroke="#3a2211" strokeWidth="1.2" strokeLinecap="round" />
-            {/* Stump top ellipse */}
-            <ellipse cx="55" cy="12" rx="40" ry="9" fill="#9a6538" stroke="#5c381e" strokeWidth="1.5" />
-            {/* Growth rings */}
-            <ellipse cx="55" cy="12" rx="28" ry="6" fill="#b07746" stroke="#875328" strokeWidth="1" />
-            <ellipse cx="55" cy="12" rx="15" ry="3.2" fill="#c48c56" />
-            {/* Moss / golden leaf sprout accent */}
-            <circle cx="22" cy="14" r="3" fill="#10b981" />
-            <circle cx="25" cy="12" r="2.2" fill="#34d399" />
-          </svg>
-        </div>
-
-        {/* ── Plane -1 (Z: -8px): Tail & Back Crest Plumes ── */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{
-            transform: `translateZ(-8px) rotateZ(${crestLag * 0.4}deg)`,
-            transition: 'transform 0.08s ease-out',
-          }}
-        >
-          <svg width="180" height="190" viewBox="0 0 180 190" fill="none">
-            {/* Rear Philippine Eagle crest plume fan (fluffy mane) */}
-            <g transform="translate(90, 48)">
-              {/* Back crest feathers radiating upward with rich feather gradient */}
-              <path
-                d="M -22 -10 Q -38 -38 -20 -44 Q -8 -32 -10 -8 Z"
-                fill="#824c25"
-                stroke="#542e14"
-                strokeWidth="1.5"
-                style={{ transform: `rotate(${-18 + crestLag * 0.5}deg)`, transformOrigin: '0% 100%' }}
-              />
-              <path
-                d="M -8 -12 Q -12 -48 0 -52 Q 12 -46 8 -12 Z"
-                fill="#9a5b2c"
-                stroke="#542e14"
-                strokeWidth="1.5"
-                style={{ transform: `rotate(${crestLag * 0.6}deg)`, transformOrigin: '0% 100%' }}
-              />
-              <path
-                d="M 10 -10 Q 14 -42 26 -46 Q 34 -34 20 -8 Z"
-                fill="#824c25"
-                stroke="#542e14"
-                strokeWidth="1.5"
-                style={{ transform: `rotate(${16 + crestLag * 0.5}deg)`, transformOrigin: '0% 100%' }}
-              />
-            </g>
-
-            {/* Rear Tail Feathers */}
-            <g transform="translate(90, 148)">
-              <path
-                d="M -14 0 L -18 24 Q 0 28 18 24 L 14 0 Z"
-                fill="#4a2911"
-                stroke="#331a0a"
-                strokeWidth="1.5"
-                style={{ transform: `rotate(${-totalRotY * 0.3}deg)`, transformOrigin: '50% 0%' }}
-              />
-            </g>
-          </svg>
-        </div>
-
-        {/* ── Plane 0 (Z: +4px): Torso, Bib & Articulated Wings ── */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{
-            transform: 'translateZ(4px)',
-          }}
-        >
-          <svg width="180" height="190" viewBox="0 0 180 190" fill="none">
-            {/* Main Chubby Torso */}
-            <g transform="translate(90, 116)">
-              {/* Torso body egg */}
-              <ellipse
-                cx="0"
-                cy="0"
-                rx="36"
-                ry="38"
-                fill="#6e3f1e"
-                stroke="#47260f"
-                strokeWidth="2"
-              />
-
-              {/* Philippine Eagle signature Cream Fluffy Chest Bib */}
-              <path
-                d="M -24 -24 Q -32 8 -16 26 Q 0 34 16 26 Q 32 8 24 -24 Q 0 -18 -24 -24 Z"
-                fill="#fdfbf7"
-                stroke="#e2dac8"
-                strokeWidth="1.2"
-              />
-              {/* Fluffy breast feather scalloping */}
-              <path
-                d="M -12 -8 Q -6 -2 0 -8 Q 6 -2 12 -8"
-                stroke="#d3c5ab"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                fill="none"
-              />
-              <path
-                d="M -8 8 Q 0 14 8 8"
-                stroke="#d3c5ab"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                fill="none"
-              />
-
-              {/* Cute Golden Raptor Talons / Feet */}
-              <g transform="translate(-16, 32)">
-                <path d="M -7 0 L -8 7 M 0 0 L 0 9 M 7 0 L 8 7" stroke="#d97706" strokeWidth="3" strokeLinecap="round" />
-                <path d="M -7 0 L -8 7 M 0 0 L 0 9 M 7 0 L 8 7" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" />
-              </g>
-              <g transform="translate(16, 32)">
-                <path d="M -7 0 L -8 7 M 0 0 L 0 9 M 7 0 L 8 7" stroke="#d97706" strokeWidth="3" strokeLinecap="round" />
-                <path d="M -7 0 L -8 7 M 0 0 L 0 9 M 7 0 L 8 7" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" />
-              </g>
-            </g>
-
-            {/* Left Wing (Folded or Gesturing) */}
-            <g
-              transform="translate(54, 108)"
-              style={{
-                transform: mood === 'celebrating'
-                  ? `translate(54px, 108px) rotate(${-35 + wingFlap * 18}deg)`
-                  : `translate(54px, 108px) rotate(${totalRotY * 0.25}deg)`,
-                transformOrigin: '28px 8px',
-                transition: 'transform 0.12s ease-out',
-              }}
-            >
-              {mood === 'celebrating' ? (
-                /* Wing spread wide high in celebration! */
-                <path
-                  d="M 28 8 Q -10 -20 -38 -8 Q -48 10 -28 32 Q 4 38 28 8 Z"
-                  fill="#5c3418"
-                  stroke="#3a1f0d"
-                  strokeWidth="2"
-                />
-              ) : (
-                /* Folded cozy resting wing */
-                <path
-                  d="M 28 0 Q -6 6 -8 32 Q -4 48 18 36 Q 30 20 28 0 Z"
-                  fill="#5c3418"
-                  stroke="#3a1f0d"
-                  strokeWidth="1.8"
-                />
-              )}
-              {/* Feather rib lines */}
-              <path d="M 8 14 Q 4 28 12 36" stroke="#45240f" strokeWidth="1.2" fill="none" />
-            </g>
-
-            {/* Right Wing (Thumbs-up or Spread) */}
-            <g
-              transform="translate(126, 108)"
-              style={{
-                transform: mood === 'celebrating'
-                  ? `translate(126px, 108px) rotate(${35 - wingFlap * 18}deg)`
-                  : `translate(126px, 108px) rotate(${-totalRotY * 0.25}deg)`,
-                transformOrigin: '-28px 8px',
-                transition: 'transform 0.12s ease-out',
-              }}
-            >
-              {mood === 'celebrating' ? (
-                /* Wing spread wide high in celebration! */
-                <path
-                  d="M -28 8 Q 10 -20 38 -8 Q 48 10 28 32 Q -4 38 -28 8 Z"
-                  fill="#5c3418"
-                  stroke="#3a1f0d"
-                  strokeWidth="2"
-                />
-              ) : mood === 'studying' ? (
-                /* Holding study book */
-                <path
-                  d="M -28 0 Q 6 6 8 32 Q 4 48 -18 36 Q -30 20 -28 0 Z"
-                  fill="#5c3418"
-                  stroke="#3a1f0d"
-                  strokeWidth="1.8"
-                />
-              ) : (
-                /* Confident resting wing / thumbs-up affordance */
-                <g>
-                  <path
-                    d="M -28 0 Q 6 6 8 32 Q 4 48 -18 36 Q -30 20 -28 0 Z"
-                    fill="#5c3418"
-                    stroke="#3a1f0d"
-                    strokeWidth="1.8"
-                  />
-                  {/* Cute Thumbs-Up Feather Nub */}
-                  <path
-                    d="M 6 12 Q 14 8 12 0 Q 7 -2 2 8 Z"
-                    fill="#6e3f1e"
-                    stroke="#47260f"
-                    strokeWidth="1.2"
-                  />
-                </g>
-              )}
-              <path d="M -8 14 Q -4 28 -12 36" stroke="#45240f" strokeWidth="1.2" fill="none" />
-            </g>
-
-            {/* Study Mode: Red Academic Textbook resting on lap */}
-            {mood === 'studying' && (
-              <g transform="translate(90, 126)">
-                {/* Book cover */}
-                <path
-                  d="M -20 -8 L 0 -4 L 20 -8 L 22 14 L 0 18 L -22 14 Z"
-                  fill="#dc2626"
-                  stroke="#991b1b"
-                  strokeWidth="1.5"
-                />
-                {/* Pages */}
-                <path
-                  d="M -18 -6 L 0 -2 L 18 -6 L 19 12 L 0 15 L -19 12 Z"
-                  fill="#fef08a"
-                  stroke="#ca8a04"
-                  strokeWidth="1"
-                />
-                {/* Book spine & ribbon bookmark */}
-                <line x1="0" y1="-2" x2="0" y2="15" stroke="#991b1b" strokeWidth="1.5" />
-                <path d="M 0 15 Q 4 22 2 26" stroke="#f59e0b" strokeWidth="1.5" fill="none" />
-              </g>
-            )}
-
-            {/* Timer Mode: Glowing Focus Stopwatch */}
-            {mood === 'timer' && (
-              <g transform="translate(122, 122)">
-                <circle cx="0" cy="0" r="11" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.5" />
-                <circle cx="0" cy="0" r="8.5" fill="#1e293b" />
-                {/* Stopwatch hands */}
-                <line x1="0" y1="0" x2="0" y2="-5.5" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" />
-                <line x1="0" y1="0" x2="4" y2="2" stroke="#38bdf8" strokeWidth="1.2" strokeLinecap="round" />
-                {/* Top clicker button */}
-                <rect x="-2" y="-14" width="4" height="3" fill="#38bdf8" rx="1" />
-              </g>
-            )}
-          </svg>
-        </div>
-
-        {/* ── Plane +1 (Z: +18px): Articulated Head & Crown Plumes ── */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{
-            transform: `translateZ(18px) rotateX(${totalRotX * 0.4}deg) rotateY(${totalRotY * 0.4}deg)`,
-            transition: 'transform 0.08s ease-out',
-          }}
-        >
-          <svg width="180" height="190" viewBox="0 0 180 190" fill="none">
-            {/* Head Assembly */}
-            <g transform="translate(90, 68)">
-              {/* Forehead feather crest tuft */}
-              <path
-                d="M -16 -32 Q -22 -52 -10 -56 Q -2 -44 -6 -28 Z"
-                fill="#9a5b2c"
-                stroke="#542e14"
-                strokeWidth="1.5"
-                style={{ transform: `rotate(${crestLag * 0.7}deg)`, transformOrigin: '0% 100%' }}
-              />
-              <path
-                d="M -4 -34 Q 0 -60 10 -58 Q 14 -42 6 -30 Z"
-                fill="#b87239"
-                stroke="#542e14"
-                strokeWidth="1.5"
-                style={{ transform: `rotate(${crestLag * 0.8}deg)`, transformOrigin: '0% 100%' }}
-              />
-
-              {/* Round Cute Head Base */}
-              <ellipse
-                cx="0"
-                cy="0"
-                rx="35"
-                ry="32"
-                fill="#b87239"
-                stroke="#6e3f1e"
-                strokeWidth="2"
-              />
-
-              {/* Lighter face mask (Philippine Eagle facial disc) */}
-              <path
-                d="M -26 -12 Q 0 -22 26 -12 Q 32 8 20 22 Q 0 30 -20 22 Q -32 8 -26 -12 Z"
-                fill="#d8965a"
-              />
-
-              {/* Soft Pink Blush Cheeks (Kawaii Cute Touch!) */}
-              <ellipse cx="-22" cy="10" rx="6.5" ry="4" fill="#f87171" fillOpacity="0.35" />
-              <ellipse cx="22" cy="10" rx="6.5" ry="4" fill="#f87171" fillOpacity="0.35" />
-            </g>
-          </svg>
-        </div>
-
-        {/* ── Plane +2 (Z: +30px): Big Expressive Anime/Pixar Eyes ── */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{
-            transform: `translateZ(30px) rotateX(${totalRotX * 0.3}deg) rotateY(${totalRotY * 0.3}deg)`,
-            transition: 'transform 0.08s ease-out',
-          }}
-        >
-          <svg width="180" height="190" viewBox="0 0 180 190" fill="none">
-            <g transform="translate(90, 68)">
-              {/* ── Left Eye Assembly ── */}
-              <g transform="translate(-16, 2)">
-                {showHappyEyes ? (
-                  /* Happy Squint Curve (⌒) */
-                  <path
-                    d="M -9 4 Q 0 -6 9 4"
-                    stroke="#2d170a"
-                    strokeWidth="3.2"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                ) : isBlinking ? (
-                  /* Closed Eyelid Line */
-                  <line x1="-9" y1="2" x2="9" y2="2" stroke="#2d170a" strokeWidth="2.8" strokeLinecap="round" />
-                ) : (
-                  <>
-                    {/* Eyeball Sclera (Large and Cute!) */}
-                    <ellipse
-                      cx="0"
-                      cy="0"
-                      rx="11"
-                      ry="12.5"
-                      fill="#ffffff"
-                      stroke="#42220e"
-                      strokeWidth="1.8"
-                    />
-
-                    {/* Rich Amber-Gold Iris that tracks gaze with depth parallax */}
-                    <ellipse
-                      cx={gaze.eyeX * 0.9}
-                      cy={gaze.eyeY * 0.9}
-                      rx="7.5"
-                      ry="8.5"
-                      fill="#d97706"
-                    />
-                    {/* Deep Obsidian Pupil */}
-                    <ellipse
-                      cx={gaze.eyeX * 1.05}
-                      cy={gaze.eyeY * 1.05}
-                      rx="5.2"
-                      ry="6.2"
-                      fill="#090d16"
-                    />
-
-                    {/* Big Glossy Catchlight Glint (Top-Right) */}
-                    <circle
-                      cx={-2.5 + gaze.eyeX * 0.4}
-                      cy={-3.8 + gaze.eyeY * 0.4}
-                      r="2.8"
-                      fill="#ffffff"
-                    />
-                    {/* Secondary Micro Specular Sparkle (Bottom-Left) */}
-                    <circle
-                      cx={2.5 + gaze.eyeX * 0.4}
-                      cy={2.2 + gaze.eyeY * 0.4}
-                      r="1.2"
-                      fill="#ffffff"
-                      fillOpacity="0.8"
-                    />
-                  </>
-                )}
-
-                {/* Eyebrow (articulated for mood) */}
-                <path
-                  d="M -10 -14 Q 0 -18 10 -13"
-                  stroke="#42220e"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  fill="none"
-                  style={{
-                    transform: mood === 'studying'
-                      ? 'translateY(3px) rotate(8deg)'
-                      : mood === 'thinking'
-                        ? 'translateY(-3px) rotate(-6deg)'
-                        : 'translateY(0px)',
-                    transformOrigin: '0% 50%',
-                  }}
-                />
-              </g>
-
-              {/* ── Right Eye Assembly ── */}
-              <g transform="translate(16, 2)">
-                {showHappyEyes ? (
-                  /* Happy Squint Curve (⌒) */
-                  <path
-                    d="M -9 4 Q 0 -6 9 4"
-                    stroke="#2d170a"
-                    strokeWidth="3.2"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                ) : isBlinking ? (
-                  /* Closed Eyelid Line */
-                  <line x1="-9" y1="2" x2="9" y2="2" stroke="#2d170a" strokeWidth="2.8" strokeLinecap="round" />
-                ) : (
-                  <>
-                    {/* Eyeball Sclera */}
-                    <ellipse
-                      cx="0"
-                      cy="0"
-                      rx="11"
-                      ry="12.5"
-                      fill="#ffffff"
-                      stroke="#42220e"
-                      strokeWidth="1.8"
-                    />
-
-                    {/* Rich Amber-Gold Iris */}
-                    <ellipse
-                      cx={gaze.eyeX * 0.9}
-                      cy={gaze.eyeY * 0.9}
-                      rx="7.5"
-                      ry="8.5"
-                      fill="#d97706"
-                    />
-                    {/* Deep Obsidian Pupil */}
-                    <ellipse
-                      cx={gaze.eyeX * 1.05}
-                      cy={gaze.eyeY * 1.05}
-                      rx="5.2"
-                      ry="6.2"
-                      fill="#090d16"
-                    />
-
-                    {/* Big Glossy Catchlight Glint */}
-                    <circle
-                      cx={-2.5 + gaze.eyeX * 0.4}
-                      cy={-3.8 + gaze.eyeY * 0.4}
-                      r="2.8"
-                      fill="#ffffff"
-                    />
-                    {/* Secondary Sparkle */}
-                    <circle
-                      cx={2.5 + gaze.eyeX * 0.4}
-                      cy={2.2 + gaze.eyeY * 0.4}
-                      r="1.2"
-                      fill="#ffffff"
-                      fillOpacity="0.8"
-                    />
-                  </>
-                )}
-
-                {/* Eyebrow */}
-                <path
-                  d="M -10 -13 Q 0 -18 10 -14"
-                  stroke="#42220e"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  fill="none"
-                  style={{
-                    transform: mood === 'studying'
-                      ? 'translateY(3px) rotate(-8deg)'
-                      : mood === 'thinking'
-                        ? 'translateY(-1px) rotate(4deg)'
-                        : 'translateY(0px)',
-                    transformOrigin: '0% 50%',
-                  }}
-                />
-              </g>
-            </g>
-          </svg>
-        </div>
-
-        {/* ── Plane +3 (Z: +42px): Cute Smiling Beak with Lip-Sync Flap ── */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{
-            transform: `translateZ(42px) rotateX(${totalRotX * 0.25}deg) rotateY(${totalRotY * 0.25}deg)`,
-            transition: 'transform 0.08s ease-out',
-          }}
-        >
-          <svg width="180" height="190" viewBox="0 0 180 190" fill="none">
-            <g transform="translate(90, 78)">
-              {/* Articulated Lower Beak / Jaw (Conversational Lip-Sync!) */}
-              <g
-                style={{
-                  transform: `translateY(${mouthFlap * 6}px)`,
-                  transition: 'transform 0.08s ease-out',
-                }}
-              >
-                {mouthFlap > 0.15 && (
-                  /* Open mouth dark cavity */
-                  <ellipse cx="0" cy="5" rx="7" ry={mouthFlap * 4.5} fill="#451a03" />
-                )}
-                <path
-                  d="M -7 4 Q 0 13 7 4 Z"
-                  fill="#f59e0b"
-                  stroke="#92400e"
-                  strokeWidth="1.2"
-                />
-              </g>
-
-              {/* Upper Raptor Beak (Hooked & Cute!) */}
-              <path
-                d="M -11 -6 Q 0 -9 11 -6 Q 9 10 0 17 Q -9 10 -11 -6 Z"
-                fill="#fbbf24"
-                stroke="#b45309"
-                strokeWidth="1.5"
-              />
-              {/* Dark hooked raptor beak tip */}
-              <path
-                d="M -6 6 Q 0 15 6 6 Q 4 15 0 17 Q -4 15 -6 6 Z"
-                fill="#475569"
-              />
-              {/* Upper beak nostril slots */}
-              <ellipse cx="-4" cy="-2" rx="1.2" ry="0.6" fill="#78350f" />
-              <ellipse cx="4" cy="-2" rx="1.2" ry="0.6" fill="#78350f" />
-            </g>
-          </svg>
-        </div>
-
-        {/* ── Plane +4 (Z: +52px): Cute 3D Equipable RPG Accessories ── */}
-        {accessory !== 'none' && (
-          <div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            style={{
-              transform: `translateZ(52px) rotateX(${totalRotX * 0.35}deg) rotateY(${totalRotY * 0.35}deg)`,
-              transition: 'transform 0.08s ease-out',
-            }}
-          >
-            <svg width="180" height="190" viewBox="0 0 180 190" fill="none">
-              <g transform="translate(90, 68)">
-                {/* 1. Scholar Glasses */}
-                {accessory === 'glasses' && (
-                  <g transform="translate(0, 0)">
-                    {/* Left wireframe rim & tinted lens */}
-                    <rect x="-27" y="-7" width="20" height="18" rx="4" fill="#38bdf8" fillOpacity="0.22" stroke="#fbbf24" strokeWidth="2" />
-                    {/* Right wireframe rim & tinted lens */}
-                    <rect x="7" y="-7" width="20" height="18" rx="4" fill="#38bdf8" fillOpacity="0.22" stroke="#fbbf24" strokeWidth="2" />
-                    {/* Golden Bridge over beak */}
-                    <line x1="-7" y1="2" x2="7" y2="2" stroke="#fbbf24" strokeWidth="2.5" />
-                    {/* Glass glare line */}
-                    <line x1="-23" y1="-3" x2="-12" y2="7" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0.8" />
-                    <line x1="11" y1="-3" x2="22" y2="7" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0.8" />
-                  </g>
-                )}
-
-                {/* 2. Graduate Mortarboard Cap */}
-                {accessory === 'cap' && (
-                  <g transform="translate(0, -32)">
-                    {/* Diamond cap top */}
-                    <polygon points="0,-14 42,0 0,14 -42,0" fill="#18181b" stroke="#27272a" strokeWidth="1.5" />
-                    {/* Skull cap band */}
-                    <rect x="-20" y="5" width="40" height="10" rx="2" fill="#09090b" />
-                    {/* Golden button */}
-                    <circle cx="0" cy="0" r="2.5" fill="#f59e0b" />
-                    {/* Swinging tassel ribbon with physics lag */}
-                    <path
-                      d={`M 0 0 Q ${-22 + crestLag * 0.8} 10 ${-26 + crestLag * 1.2} 24`}
-                      stroke="#f59e0b"
-                      strokeWidth="2"
-                      fill="none"
-                    />
-                    <circle cx={-26 + crestLag * 1.2} cy="26" r="3.2" fill="#d97706" />
-                  </g>
-                )}
-
-                {/* 3. Lo-Fi Study Headphones */}
-                {accessory === 'headphones' && (
-                  <g transform="translate(0, -6)">
-                    {/* Headband arch over crest */}
-                    <path d="M -34 16 C -34 -28, 34 -28, 34 16" fill="none" stroke="#64748b" strokeWidth="3.5" strokeLinecap="round" />
-                    {/* Left vibrant orange foam earcup */}
-                    <rect x="-42" y="4" width="10" height="22" rx="4" fill="#f97316" stroke="#c2410c" strokeWidth="1.5" />
-                    {/* Right vibrant orange foam earcup */}
-                    <rect x="32" y="4" width="10" height="22" rx="4" fill="#f97316" stroke="#c2410c" strokeWidth="1.5" />
-                  </g>
-                )}
-
-                {/* 4. Honor Royal Crown */}
-                {accessory === 'crown' && (
-                  <g transform="translate(0, -34)">
-                    {/* Golden crown peaks */}
-                    <polygon points="-24,10 -28,-4 -14,3 0,-8 14,3 28,-4 24,10" fill="#fbbf24" stroke="#d97706" strokeWidth="1.5" />
-                    {/* Crown rim base */}
-                    <rect x="-24" y="10" width="48" height="6" fill="#d97706" rx="1" />
-                    {/* Sparkling jewels */}
-                    <circle cx="-14" cy="13" r="2" fill="#ef4444" />
-                    <circle cx="0" cy="13" r="2.2" fill="#3b82f6" />
-                    <circle cx="14" cy="13" r="2" fill="#10b981" />
-                  </g>
-                )}
-
-                {/* 5. Focus Martial Arts Headband */}
-                {accessory === 'headband' && (
-                  <g transform="translate(0, -14)">
-                    {/* Crimson headband across brow */}
-                    <rect x="-34" y="0" width="68" height="7" rx="1.5" fill="#dc2626" stroke="#991b1b" strokeWidth="1" />
-                    {/* Golden sun crest */}
-                    <circle cx="0" cy="3.5" r="3" fill="#fbbf24" />
-                    {/* Fluttering trailing ribbons */}
-                    <path d={`M 33 4 Q ${42 + crestLag * 0.6} 8 ${46 + crestLag * 0.9} 18`} fill="none" stroke="#dc2626" strokeWidth="2.8" strokeLinecap="round" />
-                    <path d={`M 34 6 Q ${45 + crestLag * 0.6} 16 ${44 + crestLag * 0.9} 25`} fill="none" stroke="#b91c1c" strokeWidth="2.4" strokeLinecap="round" />
-                  </g>
-                )}
-              </g>
-            </svg>
-          </div>
-        )}
-      </div>
+        ref={mountRef}
+        className="w-full h-full flex items-center justify-center pointer-events-auto touch-none"
+      />
     </div>
   )
 }
