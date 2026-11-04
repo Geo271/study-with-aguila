@@ -7,16 +7,14 @@ import * as THREE from 'three'
  * AguiMascot3D - Polished, Cute, and Interactive 3D Mascot Engine Rig
  * Built with Three.js (WebGL 60-120fps)
  * 
- * Features:
- * - Adorable Chibi Philippine Eagle 3D model (rounded head, feathery cheeks, cute blush, sparkling anime/Pixar eyes)
- * - 3-Axis dynamic head & gaze cursor tracking with ocular parallax
- * - Conversational lip-sync: articulated lower beak moves in speech rhythm when AI replies
- * - Secondary spring physics on crest plumage, graduation tassel, and accessories
- * - Organic breathing kinetics, weight shifts, and celebratory victory flaps
- * - Interactive 3D drag-to-orbit with spring return to front
- * - Snugly fitted 3D accessories: Scholar Glasses, Mortarboard Cap, Headphones, Royal Crown, Headband
- * - Studio vinyl-toy lighting (Key, Fill, and glowing Golden Rim light)
- * - Ground contact soft shadow on a carved wood stump perch
+ * Refinements:
+ * 1. Safe Hop Physics: Hard-clamped bounce ceiling (max 0.22 units) so Agui NEVER flies off-screen on rapid clicks!
+ * 2. Unified Cute Face Mask: Replaced the dark brown center strip with a warm, fluffy cream/golden facial disc (no more "brown bother in middle").
+ * 3. Polished Designer Cheeks: Replaced protruding meatball spheres with soft, smooth chibi cheeks and flush rosy blush discs.
+ * 4. Adorable Sweet Eyes: Sclera + warm glowing honey irises + dual Pixar-style specular sparkles + clean blinks.
+ * 5. Petite Royal Crown: Resized to a cute, elegant mini coronet (radius 0.30) that perches neatly atop the head.
+ * 6. Conversational Lip-Sync: Articulated lower beak flaps smoothly when AI replies.
+ * 7. Interactive 3D Drag Orbit: Drag to rotate in 3D perspective with spring return.
  */
 
 export default function AguiMascot3D({
@@ -94,10 +92,13 @@ export default function AguiMascot3D({
     stateRef.current.happyTrigger = happyTrigger
   }, [mood, accessory, isTyping, isInputFocused, happyTrigger])
 
-  // React to external squash/poke trigger
+  // ── Safe Hop Trigger (Debounced & Clamped so it never shoots off-screen!) ──
   useEffect(() => {
     if (squashTrigger > 0) {
-      stateRef.current.hopVy = 0.16
+      // Only initiate a hop if mascot is near ground (prevents infinite mid-air stacking)
+      if (stateRef.current.hopY < 0.05) {
+        stateRef.current.hopVy = 0.075 // Gentle cute bounce
+      }
     }
   }, [squashTrigger])
 
@@ -123,9 +124,9 @@ export default function AguiMascot3D({
     const height = sizePx
 
     const scene = new THREE.Scene()
-    // Portrait lens FOV (35 deg) for zero fish-eye and maximum cuteness
-    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100)
-    camera.position.set(0, 0.1, 4.9)
+    // Portrait lens FOV (34 deg) for warm chibi proportions
+    const camera = new THREE.PerspectiveCamera(34, width / height, 0.1, 100)
+    camera.position.set(0, 0.08, 4.9)
 
     let renderer
     try {
@@ -137,7 +138,7 @@ export default function AguiMascot3D({
       renderer.setSize(width, height)
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
       renderer.toneMapping = THREE.ACESFilmicToneMapping
-      renderer.toneMappingExposure = 1.2
+      renderer.toneMappingExposure = 1.25
       renderer.shadowMap.enabled = true
       renderer.shadowMap.type = THREE.PCFSoftShadowMap
       container.appendChild(renderer.domElement)
@@ -148,12 +149,11 @@ export default function AguiMascot3D({
     }
 
     // ── 3. Warm Studio Character Lighting ──────────────────────────────────
-    // Soft warm ambient base
-    const ambientLight = new THREE.AmbientLight(0xfff8ee, 1.4)
+    const ambientLight = new THREE.AmbientLight(0xfff9f0, 1.45)
     scene.add(ambientLight)
 
     // Warm Key Light (top-right forward)
-    const keyLight = new THREE.DirectionalLight(0xffedd5, 1.9)
+    const keyLight = new THREE.DirectionalLight(0xffedd5, 1.85)
     keyLight.position.set(2.4, 4.0, 3.2)
     keyLight.castShadow = true
     keyLight.shadow.mapSize.width = 512
@@ -162,24 +162,19 @@ export default function AguiMascot3D({
     scene.add(keyLight)
 
     // Soft sky-blue bounce fill (bottom-left)
-    const fillLight = new THREE.DirectionalLight(0xbbe1fa, 0.8)
+    const fillLight = new THREE.DirectionalLight(0xbae6fd, 0.75)
     fillLight.position.set(-2.8, 0.6, 2.0)
     scene.add(fillLight)
 
-    // Glorious Golden Rim Backlight (high-craft halo on feathers)
-    const rimLight = new THREE.DirectionalLight(0xfbbf24, 2.6)
+    // Glowing Golden Rim Backlight
+    const rimLight = new THREE.DirectionalLight(0xfbbf24, 2.4)
     rimLight.position.set(0, 3.2, -3.2)
     scene.add(rimLight)
 
     // ── 4. Stylized Cute Materials (Soft-Matte Vinyl Toy / Pixar Aesthetic) ─
     const matPlumage = new THREE.MeshStandardMaterial({
-      color: 0x98592c, // Warm tawny chestnut
+      color: 0x9a5c2f, // Warm tawny golden-chestnut
       roughness: 0.42,
-      metalness: 0.04,
-    })
-    const matPlumageLight = new THREE.MeshStandardMaterial({
-      color: 0xb67543, // Warm golden honey
-      roughness: 0.45,
       metalness: 0.04,
     })
     const matPlumageDark = new THREE.MeshStandardMaterial({
@@ -187,8 +182,13 @@ export default function AguiMascot3D({
       roughness: 0.48,
       metalness: 0.04,
     })
+    const matFaceMask = new THREE.MeshStandardMaterial({
+      color: 0xfffaea, // Warm fluffy golden-cream face disc
+      roughness: 0.38,
+      metalness: 0.02,
+    })
     const matChestBib = new THREE.MeshStandardMaterial({
-      color: 0xfefcf7, // Soft fluffy ivory cream
+      color: 0xfdfbf7, // Fluffy ivory-cream breast
       roughness: 0.4,
       metalness: 0.02,
     })
@@ -210,9 +210,9 @@ export default function AguiMascot3D({
       roughness: 0.08,
     })
     const matIris = new THREE.MeshStandardMaterial({
-      color: 0xd97706, // Deep amber honey
-      emissive: 0x78350f,
-      emissiveIntensity: 0.2,
+      color: 0xeab308, // Glowing honey gold
+      emissive: 0x854d0e,
+      emissiveIntensity: 0.25,
       roughness: 0.12,
     })
     const matPupil = new THREE.MeshStandardMaterial({
@@ -223,9 +223,9 @@ export default function AguiMascot3D({
       color: 0xffffff,
     })
     const matBlush = new THREE.MeshBasicMaterial({
-      color: 0xf87171, // Kawaii pink blush
+      color: 0xfb7185, // Soft rosy kawaii blush
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.55,
     })
     const matWoodBark = new THREE.MeshStandardMaterial({
       color: 0x5c381e,
@@ -245,7 +245,7 @@ export default function AguiMascot3D({
     const shadowMat = new THREE.MeshBasicMaterial({
       color: 0x0c0c0e,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.42,
       depthWrite: false,
     })
     const shadowPlane = new THREE.Mesh(shadowGeo, shadowMat)
@@ -378,33 +378,29 @@ export default function AguiMascot3D({
 
     // Head Skull Mesh (Smooth cute sphere)
     const headGeo = new THREE.SphereGeometry(0.75, 32, 28)
-    headGeo.scale(1.05, 0.98, 1.02)
+    headGeo.scale(1.04, 0.98, 1.02)
     const headMesh = new THREE.Mesh(headGeo, matPlumage)
     headMesh.castShadow = true
     headGroup.add(headMesh)
 
-    // Cheeks: Soft rounded feather cheeks
-    const cheekGeo = new THREE.SphereGeometry(0.35, 18, 14)
-    cheekGeo.scale(1.0, 0.8, 0.7)
+    // ── UNIFIED CUTE FACIAL DISC (Eliminates the "brown bother in middle"!) ──
+    // Smooth golden-cream mask that harmonizes eyes, cheeks, and beak
+    const faceMaskGeo = new THREE.SphereGeometry(0.68, 30, 24)
+    faceMaskGeo.scale(0.86, 0.74, 0.42)
+    const faceMaskMesh = new THREE.Mesh(faceMaskGeo, matFaceMask)
+    faceMaskMesh.position.set(0, 0.02, 0.52)
+    headGroup.add(faceMaskMesh)
 
-    const leftCheek = new THREE.Mesh(cheekGeo, matPlumageLight)
-    leftCheek.position.set(-0.48, -0.16, 0.32)
-    headGroup.add(leftCheek)
-
-    const rightCheek = new THREE.Mesh(cheekGeo, matPlumageLight)
-    rightCheek.position.set(0.48, -0.16, 0.32)
-    headGroup.add(rightCheek)
-
-    // Kawaii Pink Blush Discs
-    const blushGeo = new THREE.CircleGeometry(0.12, 18)
+    // Polished Rosy Blush Circles (embedded seamlessly on the cream mask)
+    const blushGeo = new THREE.CircleGeometry(0.095, 18)
     const leftBlush = new THREE.Mesh(blushGeo, matBlush)
-    leftBlush.position.set(-0.46, -0.14, 0.62)
-    leftBlush.rotation.y = -0.35
+    leftBlush.position.set(-0.28, -0.07, 0.70)
+    leftBlush.rotation.y = -0.25
     headGroup.add(leftBlush)
 
     const rightBlush = new THREE.Mesh(blushGeo, matBlush)
-    rightBlush.position.set(0.46, -0.14, 0.62)
-    rightBlush.rotation.y = 0.35
+    rightBlush.position.set(0.28, -0.07, 0.70)
+    rightBlush.rotation.y = 0.25
     headGroup.add(rightBlush)
 
     // ── Philippine Eagle Iconic Feather Crest Plumes (Crown of Feathers) ──
@@ -418,7 +414,7 @@ export default function AguiMascot3D({
       const plumeGeo = new THREE.ConeGeometry(0.13, 0.62 - Math.abs(angle) * 0.18, 10)
       plumeGeo.scale(0.35, 1.0, 0.75)
       plumeGeo.translate(0, 0.28, 0)
-      const plumeMesh = new THREE.Mesh(plumeGeo, idx % 2 === 0 ? matPlumageLight : matPlumage)
+      const plumeMesh = new THREE.Mesh(plumeGeo, idx % 2 === 0 ? matFaceMask : matPlumage)
       plumeMesh.rotation.z = angle
       plumeMesh.rotation.x = -0.42 - Math.abs(angle) * 0.12
       crestGroup.add(plumeMesh)
@@ -426,48 +422,49 @@ export default function AguiMascot3D({
 
     // ── Cute Beak Assembly with Conversational Speech Lip-Sync ──
     const beakGroup = new THREE.Group()
-    beakGroup.position.set(0, -0.08, 0.68)
+    beakGroup.position.set(0, -0.08, 0.70)
     headGroup.add(beakGroup)
 
-    // Upper Cute Raptor Beak
-    const upperBeakGeo = new THREE.ConeGeometry(0.18, 0.42, 18)
+    // Upper Cute Raptor Beak (petite and smiling)
+    const upperBeakGeo = new THREE.ConeGeometry(0.16, 0.38, 18)
     upperBeakGeo.scale(0.85, 1.0, 0.9)
     upperBeakGeo.rotateX(Math.PI / 2.3)
-    upperBeakGeo.translate(0, 0.02, 0.16)
+    upperBeakGeo.translate(0, 0.02, 0.14)
     const upperBeakMesh = new THREE.Mesh(upperBeakGeo, matGoldBeak)
     upperBeakMesh.castShadow = true
     beakGroup.add(upperBeakMesh)
 
     // Hooked tip
-    const tipGeo = new THREE.ConeGeometry(0.09, 0.22, 14)
+    const tipGeo = new THREE.ConeGeometry(0.08, 0.18, 14)
     tipGeo.rotateX(Math.PI / 2.1)
-    tipGeo.translate(0, -0.04, 0.28)
+    tipGeo.translate(0, -0.03, 0.24)
     const tipMesh = new THREE.Mesh(tipGeo, matBeakTip)
     beakGroup.add(tipMesh)
 
     // Lower Beak / Jaw (Pivot for speech lip-sync!)
     const lowerBeakGroup = new THREE.Group()
-    lowerBeakGroup.position.set(0, -0.11, 0.12)
+    lowerBeakGroup.position.set(0, -0.10, 0.10)
     beakGroup.add(lowerBeakGroup)
 
-    const lowerBeakGeo = new THREE.ConeGeometry(0.13, 0.28, 14)
+    const lowerBeakGeo = new THREE.ConeGeometry(0.12, 0.24, 14)
     lowerBeakGeo.scale(0.75, 1.0, 0.8)
     lowerBeakGeo.rotateX(Math.PI / 2.1)
-    lowerBeakGeo.translate(0, -0.02, 0.1)
+    lowerBeakGeo.translate(0, -0.02, 0.08)
     const lowerBeakMesh = new THREE.Mesh(lowerBeakGeo, matGoldBeak)
     lowerBeakGroup.add(lowerBeakMesh)
 
     // Inner mouth cavity
-    const mouthCavityGeo = new THREE.SphereGeometry(0.09, 10, 8)
+    const mouthCavityGeo = new THREE.SphereGeometry(0.08, 10, 8)
     mouthCavityGeo.scale(0.8, 0.45, 0.8)
     const mouthCavityMesh = new THREE.Mesh(mouthCavityGeo, matBeakInterior)
-    mouthCavityMesh.position.set(0, 0, 0.08)
+    mouthCavityMesh.position.set(0, 0, 0.07)
     lowerBeakGroup.add(mouthCavityMesh)
 
     // ── Big Expressive Anime/Pixar Eyes with Specular Glints ──
-    const eyeSpacing = 0.29
+    // Sweet chibi spacing (x = ±0.23, nestled comfortably in the cream mask)
+    const eyeSpacing = 0.23
     const eyeHeight = 0.08
-    const eyeDepth = 0.64
+    const eyeDepth = 0.65
 
     const createEyeAssembly = (isRight = false) => {
       const eyeAssembly = new THREE.Group()
@@ -475,22 +472,21 @@ export default function AguiMascot3D({
       eyeAssembly.position.set(xPos, eyeHeight, eyeDepth)
       headGroup.add(eyeAssembly)
 
-      // Slight forward raptor angle
-      eyeAssembly.rotation.y = isRight ? 0.18 : -0.18
+      eyeAssembly.rotation.y = isRight ? 0.14 : -0.14
 
       // Sclera (Eye White Sphere)
-      const eyeWhiteGeo = new THREE.SphereGeometry(0.175, 24, 20)
+      const eyeWhiteGeo = new THREE.SphereGeometry(0.17, 24, 20)
       const eyeWhite = new THREE.Mesh(eyeWhiteGeo, matEyeWhite)
       eyeAssembly.add(eyeWhite)
 
-      // Large Amber Iris
-      const irisGeo = new THREE.SphereGeometry(0.135, 20, 16)
+      // Large Honey Iris
+      const irisGeo = new THREE.SphereGeometry(0.132, 20, 16)
       const irisMesh = new THREE.Mesh(irisGeo, matIris)
       irisMesh.position.set(0, 0, 0.07)
       eyeAssembly.add(irisMesh)
 
       // Deep Obsidian Pupil
-      const pupilGeo = new THREE.SphereGeometry(0.092, 16, 12)
+      const pupilGeo = new THREE.SphereGeometry(0.09, 16, 12)
       const pupilMesh = new THREE.Mesh(pupilGeo, matPupil)
       pupilMesh.position.set(0, 0, 0.11)
       eyeAssembly.add(pupilMesh)
@@ -507,17 +503,17 @@ export default function AguiMascot3D({
       microGlint.position.set(0.035, -0.032, 0.155)
       eyeAssembly.add(microGlint)
 
-      // Dynamic Eyelid (Rotates down for natural organic blinks)
-      const eyelidGeo = new THREE.SphereGeometry(0.188, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2)
-      const eyelidMesh = new THREE.Mesh(eyelidGeo, matPlumage)
-      eyelidMesh.rotation.x = -Math.PI / 2 // Hidden above eye when open
+      // Dynamic Eyelid (Rotates down for natural organic blinks, matches cream mask!)
+      const eyelidGeo = new THREE.SphereGeometry(0.182, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2)
+      const eyelidMesh = new THREE.Mesh(eyelidGeo, matFaceMask)
+      eyelidMesh.rotation.x = -Math.PI / 2
       eyeAssembly.add(eyelidMesh)
 
       // Brow Tuft
-      const browGeo = new THREE.BoxGeometry(0.24, 0.055, 0.14)
+      const browGeo = new THREE.BoxGeometry(0.22, 0.05, 0.12)
       const browMesh = new THREE.Mesh(browGeo, matPlumageDark)
-      browMesh.position.set(0, 0.16, 0.05)
-      browMesh.rotation.z = isRight ? -0.12 : 0.12
+      browMesh.position.set(0, 0.15, 0.05)
+      browMesh.rotation.z = isRight ? -0.1 : 0.1
       eyeAssembly.add(browMesh)
 
       return {
@@ -554,25 +550,25 @@ export default function AguiMascot3D({
       transmission: 0.85,
     })
 
-    const rimGeo = new THREE.TorusGeometry(0.16, 0.018, 12, 28)
+    const rimGeo = new THREE.TorusGeometry(0.15, 0.016, 12, 28)
     const leftRim = new THREE.Mesh(rimGeo, glassFrameMat)
-    leftRim.position.set(-0.29, 0, 0)
+    leftRim.position.set(-0.24, 0, 0)
     glassesGroup.add(leftRim)
 
-    const lensGeo = new THREE.CircleGeometry(0.15, 24)
+    const lensGeo = new THREE.CircleGeometry(0.14, 24)
     const leftLens = new THREE.Mesh(lensGeo, glassLensMat)
-    leftLens.position.set(-0.29, 0, 0.01)
+    leftLens.position.set(-0.24, 0, 0.01)
     glassesGroup.add(leftLens)
 
     const rightRim = new THREE.Mesh(rimGeo, glassFrameMat)
-    rightRim.position.set(0.29, 0, 0)
+    rightRim.position.set(0.24, 0, 0)
     glassesGroup.add(rightRim)
 
     const rightLens = new THREE.Mesh(lensGeo, glassLensMat)
-    rightLens.position.set(0.29, 0, 0.01)
+    rightLens.position.set(0.24, 0, 0.01)
     glassesGroup.add(rightLens)
 
-    const bridgeGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.28, 8)
+    const bridgeGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.24, 8)
     const bridgeMesh = new THREE.Mesh(bridgeGeo, glassFrameMat)
     bridgeMesh.rotation.z = Math.PI / 2
     bridgeMesh.position.set(0, 0.02, 0.02)
@@ -636,40 +632,40 @@ export default function AguiMascot3D({
     rightEarcup.position.set(0.74, 0, 0)
     headphonesGroup.add(rightEarcup)
 
-    // 4. Royal Honor Crown (Snug, level atop head)
+    // 4. PETITE ROYAL CORONET (Resized to cute mini crown, sitting neatly atop head!)
     const crownGroup = new THREE.Group()
-    crownGroup.position.set(0, 0.74, 0)
+    crownGroup.position.set(0, 0.72, 0)
     accessoriesGroup.add(crownGroup)
 
     const crownMat = new THREE.MeshStandardMaterial({
       color: 0xfbbf24,
-      metalness: 0.85,
-      roughness: 0.2,
+      metalness: 0.88,
+      roughness: 0.18,
       emissive: 0xd97706,
-      emissiveIntensity: 0.15,
+      emissiveIntensity: 0.2,
     })
-    const crownBaseGeo = new THREE.CylinderGeometry(0.48, 0.50, 0.12, 24, 1, true)
+    const crownBaseGeo = new THREE.CylinderGeometry(0.30, 0.32, 0.10, 24, 1, true)
     const crownBase = new THREE.Mesh(crownBaseGeo, crownMat)
     crownGroup.add(crownBase)
 
-    // 5 Crown Peaks with ruby & sapphire jewels
+    // 5 cute petite peaks with gems
     for (let i = 0; i < 5; i++) {
       const angle = (i / 5) * Math.PI * 2
-      const peakGeo = new THREE.ConeGeometry(0.1, 0.28, 8)
+      const peakGeo = new THREE.ConeGeometry(0.075, 0.22, 8)
       const peakMesh = new THREE.Mesh(peakGeo, crownMat)
-      peakMesh.position.set(Math.cos(angle) * 0.48, 0.19, Math.sin(angle) * 0.48)
+      peakMesh.position.set(Math.cos(angle) * 0.30, 0.14, Math.sin(angle) * 0.30)
       crownGroup.add(peakMesh)
 
-      const jewelGeo = new THREE.DodecahedronGeometry(0.04)
+      const jewelGeo = new THREE.DodecahedronGeometry(0.032)
       const jewelMat = new THREE.MeshStandardMaterial({
         color: i % 2 === 0 ? 0xef4444 : 0x3b82f6,
         roughness: 0.1,
         metalness: 0.4,
         emissive: i % 2 === 0 ? 0xb91c1c : 0x1d4ed8,
-        emissiveIntensity: 0.5,
+        emissiveIntensity: 0.6,
       })
       const jewelMesh = new THREE.Mesh(jewelGeo, jewelMat)
-      jewelMesh.position.set(Math.cos(angle) * 0.49, 0.02, Math.sin(angle) * 0.49)
+      jewelMesh.position.set(Math.cos(angle) * 0.31, 0.02, Math.sin(angle) * 0.31)
       crownGroup.add(jewelMesh)
     }
 
@@ -829,10 +825,16 @@ export default function AguiMascot3D({
       torsoMesh.scale.set(0.96 * breathScale, 1.08 * breathScale, 0.9 * breathScale)
       bibMesh.scale.set(0.88 * breathScale, 1.0 * breathScale, 0.45 * breathScale)
 
-      // 2. Hop / Squash Physics
+      // 2. SAFE HOP / SQUASH PHYSICS (Hard-clamped ceiling: NEVER shoots off-screen!)
       if (state.hopVy !== 0 || state.hopY > 0) {
         state.hopY += state.hopVy
-        state.hopVy -= 0.015
+        state.hopVy -= 0.007 // Realistic smooth gravity
+
+        // Hard ceiling clamp: max jump is 0.22 units (stays 100% inside view!)
+        if (state.hopY > 0.22) {
+          state.hopY = 0.22
+          state.hopVy = -0.003 // Peak and return
+        }
 
         if (state.hopY <= 0) {
           state.hopY = 0
@@ -844,11 +846,12 @@ export default function AguiMascot3D({
       const weightShift = Math.sin(time * 0.8) * 0.035
       const bobY = Math.sin(time * breathSpeed) * 0.03
 
-      characterRoot.position.y = state.hopY + bobY
+      // Clamped vertical position
+      characterRoot.position.y = Math.min(0.25, state.hopY) + bobY
 
-      const shadowScale = Math.max(0.65, 1 - state.hopY * 0.5)
+      const shadowScale = Math.max(0.7, 1 - state.hopY * 0.6)
       shadowPlane.scale.set(shadowScale, shadowScale, shadowScale)
-      shadowMat.opacity = Math.max(0.2, 0.45 - state.hopY * 0.22)
+      shadowMat.opacity = Math.max(0.22, 0.42 - state.hopY * 0.3)
 
       // 3. Smooth Gaze Damping
       state.currentRotY += (state.targetRotY - state.currentRotY) * 0.11
