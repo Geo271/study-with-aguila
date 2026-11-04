@@ -20,7 +20,7 @@ function getAvatarColor(uid = '') {
 }
 function getDisplayName(email = '') { return email?.split('@')[0].slice(0, 12) || 'Guest' }
 
-export function useLounge({ loungeCode, user }) {
+export function useLounge({ loungeCode, user, is3DMode = false }) {
   const channelRef        = useRef(null)
   const initialPosition   = { x: ROOM_WIDTH / 2 - AVATAR_W / 2, y: 560 - AVATAR_H / 2 }
   const myPositionRef     = useRef(initialPosition)
@@ -231,8 +231,10 @@ export function useLounge({ loungeCode, user }) {
     channelRef.current.send({ type:'broadcast', event:'lounge_buff', payload:{ userId, displayName:localName, buffText } })
   }, [userId, localName])
 
-  // Movement loop with AABB obstacle collisions & wall sliding
+  // Movement loop with AABB obstacle collisions & wall sliding (2D mode only)
   useEffect(() => {
+    if (is3DMode) return // In 3D mode, Lounge3DRoom handles movement, physics, and collisions
+
     const onKeyDown = (e) => {
       if (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA') return
       keysRef.current[e.key] = true
@@ -306,7 +308,7 @@ export function useLounge({ loungeCode, user }) {
       cancelAnimationFrame(animFrameRef.current)
       clearTimeout(broadcastTimerRef.current)
     }
-  }, [broadcastPosition, wakeUp, isIdle])
+  }, [broadcastPosition, wakeUp, isIdle, is3DMode])
 
   useEffect(() => {
     if (!loungeCode || !userId) return

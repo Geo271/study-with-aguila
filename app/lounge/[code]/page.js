@@ -376,7 +376,7 @@ function EmotePicker({ onEmote, onClose }) {
 // CHAT PANEL
 // BUG FIX: onBroadcastPDF properly wired — no more DOM getElementById hack
 // ─────────────────────────────────────────────────────────────────────────────
-function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, mySprite, onUpdateIdentity, roomCode, onBroadcastPDF, onSendEmote, myXP, myLevel, onOpenQuiz }) {
+function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, mySprite, onUpdateIdentity, roomCode, onBroadcastPDF, onSendEmote, myXP, myLevel, onOpenQuiz, onClose }) {
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(myName)
@@ -400,6 +400,29 @@ function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, m
 
   return (
     <div style={S.panel}>
+      {/* Top Header with Collapse Button */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderBottom:'1px solid rgba(255,255,255,0.08)', background:'rgba(18,18,24,0.6)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#f4f4f5' }}>Chat & Lounge</span>
+          <span style={{ fontSize:10, color:'#a1a1aa', background:'rgba(255,255,255,0.06)', padding:'2px 6px', borderRadius:6, fontWeight:600 }}>
+            {uniqueUsers.length} online
+          </span>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            title="Collapse Chat (or press C)"
+            style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'4px 8px', cursor:'pointer', color:'#a1a1aa', fontSize:11, fontWeight:600, transition:'all 0.15s ease' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.14)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            Collapse
+          </button>
+        )}
+      </div>
       {/* Identity */}
       <div style={S.section}>
         <div style={S.label}>{Ic.edit('w-3 h-3')} Your identity</div>
@@ -548,7 +571,7 @@ function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, m
             {Ic.smile('w-4 h-4')}
           </button>
 
-          <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Message or @aguila..."
+          <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Message, @aguila, or /tp <location>..."
             style={{ 
               flex: 1, 
               minWidth: 0, /* 🌟 FIX: Stops the input from pushing the send button out! */
@@ -770,14 +793,40 @@ function VirtualJoystick({ setMovement }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function MusicWidget({ globalMusic, setGlobalMusic }) {
   const [minimized, setMinimized] = useState(false)
+  const playerRef = useRef(null)
+
+  // Ensure any previous audio instance is stopped when URL is cleared
+  useEffect(() => {
+    if (!globalMusic?.url && playerRef.current) {
+      try {
+        playerRef.current.stopVideo?.()
+        playerRef.current.destroy?.()
+      } catch {}
+      playerRef.current = null
+    }
+  }, [globalMusic?.url])
+
   if (!globalMusic?.url) return null
   const isYT = globalMusic.url.includes('youtube.com') || globalMusic.url.includes('youtu.be')
   const isSpotify = globalMusic.url.includes('spotify.com')
   let embedUrl = globalMusic.url
-  if (isYT && !embedUrl.includes('mute=1')) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'mute=1&playsinline=1&rel=0'
+  if (isYT && !embedUrl.includes('mute=1')) {
+    embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'mute=1&playsinline=1&rel=0'
+  }
+
+  const handleStopAndClose = () => {
+    if (playerRef.current) {
+      try {
+        playerRef.current.stopVideo?.()
+        playerRef.current.destroy?.()
+      } catch {}
+      playerRef.current = null
+    }
+    setGlobalMusic({ url:'', isPlaying:false, time:0 })
+  }
 
   return (
-    <div className="music-widget" style={{ animation:'fadeIn 0.2s ease' }}>
+    <div key={globalMusic.url} className="music-widget" style={{ animation:'fadeIn 0.2s ease' }}>
       <div style={{ background:'rgba(255,255,255,0.04)', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:minimized ? 'none' : '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           {Ic.music('w-3 h-3')}
@@ -788,23 +837,39 @@ function MusicWidget({ globalMusic, setGlobalMusic }) {
           <button onClick={() => setMinimized(m => !m)} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex' }}>
             {minimized ? Ic.maximize2('w-3.5 h-3.5') : Ic.minimize('w-3.5 h-3.5')}
           </button>
-          <button onClick={() => setGlobalMusic({ url:'' })} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex' }}>
+          <button onClick={handleStopAndClose} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#52525b', padding:3, display:'flex' }}>
             {Ic.x('w-3.5 h-3.5')}
           </button>
         </div>
       </div>
-      {/* Keep DOM mounted when minimized so audio continues */}
+      {/* Keep DOM mounted when minimized so audio continues, but unmount on URL change */}
       <div style={{ height:minimized ? 0 : (isSpotify ? 152 : 160), overflow:'hidden', transition:'height 0.3s ease' }}>
         {isYT ? (
           <YouTube
+            key={globalMusic.url}
             videoId={globalMusic.url.includes('videoseries') ? null : globalMusic.url.split('embed/')[1]?.split('?')[0]}
             opts={{ height:'152', width:'100%', playerVars:{ autoplay:1, controls:1 } }}
-            onPlay={e => setGlobalMusic({ isPlaying:true, time:e.target.getCurrentTime() })}
+            onPlay={e => {
+              playerRef.current = e.target
+              setGlobalMusic({ isPlaying:true, time:e.target.getCurrentTime() })
+            }}
             onPause={e => setGlobalMusic({ isPlaying:false, time:e.target.getCurrentTime() })}
-            onReady={e => { if (!globalMusic.isPlaying) e.target.pauseVideo(); e.target.seekTo(globalMusic.time||0) }}
+            onReady={e => {
+              playerRef.current = e.target
+              if (!globalMusic.isPlaying) e.target.pauseVideo()
+              e.target.seekTo(globalMusic.time||0)
+            }}
           />
         ) : (
-          <iframe src={embedUrl} width="100%" height={isSpotify ? 152 : 160} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" style={{ display:'block' }} />
+          <iframe
+            key={globalMusic.url}
+            src={embedUrl}
+            width="100%"
+            height={isSpotify ? 152 : 160}
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            style={{ display:'block' }}
+          />
         )}
       </div>
     </div>
@@ -1132,7 +1197,8 @@ const {
     activeEmotes,       
     sendEmote,
     broadcastLoungeBuff,
-  } = useLounge({ loungeCode: code, user })
+  } = useLounge({ loungeCode: code, user, is3DMode: view3D })
+  const room3DRef = useRef(null)
 
   // Camera follow
   useEffect(() => {
@@ -1218,7 +1284,7 @@ const {
 
       {/* Living Interactive Game Room */}
       {view3D ? (
-        <Lounge3DRoom
+        <Lounge3DRoom ref={room3DRef}
           myPosition={myPosition}
           setMyPosition={setMyPosition}
           otherUsers={otherUsers}
@@ -1272,8 +1338,45 @@ const {
             myXP={xp}
             myLevel={level}
             onOpenQuiz={setQuizOverlayId}
+            onClose={() => setChatOpen(false)}
           />
         </div>
+      )}
+
+      {/* Floating Toggle Button when Chat is Collapsed */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          title="Open Chat (or press C)"
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            background: 'rgba(9, 9, 11, 0.92)',
+            border: '1px solid rgba(99, 102, 241, 0.4)',
+            borderRadius: 20,
+            padding: '7px 14px',
+            cursor: 'pointer',
+            color: '#c7d2fe',
+            fontSize: 12,
+            fontWeight: 700,
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.2)',
+            backdropFilter: 'blur(12px)',
+            zIndex: 90,
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(30, 27, 75, 0.95)' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(9, 9, 11, 0.92)' }}
+        >
+          {Ic.chat('w-4 h-4')}
+          <span>Chat</span>
+          <span style={{ fontSize: 10, background: '#4f46e5', color: '#fff', padding: '1px 6px', borderRadius: 10, fontWeight: 800 }}>
+            {presenceList.length}
+          </span>
+        </button>
       )}
 
       <MusicWidget globalMusic={globalMusic} setGlobalMusic={setGlobalMusic} />
