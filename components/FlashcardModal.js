@@ -78,29 +78,6 @@ export default function FlashcardModal({
     topic: 'Core Concept',
   }
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!isOpen || isFinished || isLoading) return
-
-    const handleKeyDown = (e) => {
-      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.preventDefault()
-        handleFlip()
-      } else if (e.key === '1' || e.key === 'ArrowLeft') {
-        e.preventDefault()
-        handleNext(false)
-      } else if (e.key === '2' || e.key === 'ArrowRight') {
-        e.preventDefault()
-        handleNext(true)
-      } else if (e.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isFinished, isLoading, isFlipped, currentIndex, isTransitioning])
-
   const handleFlip = useCallback(() => {
     if (isTransitioning) return
     playCardAudio('flip')
@@ -132,6 +109,29 @@ export default function FlashcardModal({
       setIsTransitioning(false)
     }, 240)
   }, [currentIndex, cards.length, onGainXP, isTransitioning])
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isOpen || isFinished || isLoading) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        handleFlip()
+      } else if (e.key === '1' || e.key === 'ArrowLeft') {
+        e.preventDefault()
+        handleNext(false)
+      } else if (e.key === '2' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        handleNext(true)
+      } else if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isFinished, isLoading, isFlipped, currentIndex, isTransitioning, handleFlip, handleNext, onClose])
 
   const handleRestart = () => {
     setCurrentIndex(0)

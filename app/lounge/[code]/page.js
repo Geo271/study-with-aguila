@@ -16,6 +16,9 @@ import {
 } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 import '@livekit/components-styles'
+import LoungeGameRoom from '@/components/LoungeGameRoom'
+import PomodoroTimer from '@/components/PomodoroTimer'
+import FlashcardModal from '@/components/FlashcardModal'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SVG ICONS
@@ -1056,6 +1059,15 @@ function useXP(userId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_CARDS = [
+  { front: 'What is Active Recall?', back: 'Testing yourself to retrieve information from memory rather than passive re-reading.', topic: 'Cognitive Science', hint: 'Think retrieval practice' },
+  { front: 'What is the Pomodoro Technique?', back: 'Studying in 25-minute focused bursts followed by a 5-minute break.', topic: 'Productivity', hint: 'Italian for tomato' },
+  { front: 'What is Spaced Repetition?', back: 'Reviewing key concepts at increasing time intervals to interrupt the forgetting curve.', topic: 'Memory Retention', hint: 'Optimal spacing' },
+  { front: 'What is the Feynman Technique?', back: 'Explaining a complex idea in simple words to quickly reveal gaps in understanding.', topic: 'Mastery', hint: 'Teaching to understand' },
+  { front: 'How does Interleaving aid study?', back: 'Mixing different topics or question types in one session for better long-term retention.', topic: 'Learning Method', hint: 'Mixing vs blocking' },
+]
+
 export default function LoungePage() {
   const { code } = useParams()
   const router = useRouter()
@@ -1072,6 +1084,9 @@ export default function LoungePage() {
   const [micPermission, setMicPermission] = useState('unknown')
   const [showPresent, setShowPresent] = useState(false)
   const [quizOverlayId, setQuizOverlayId] = useState(null)
+  const [showPomodoroModal, setShowPomodoroModal] = useState(false)
+  const [showFlashcardModal, setShowFlashcardModal] = useState(false)
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
 
   const scrollViewRef = useRef(null)
 
@@ -1108,12 +1123,13 @@ export default function LoungePage() {
 
   // CRITICAL: destructure broadcastLoungePDF from useLounge
 const {
-    myPosition, otherUsers, presenceList, chatMessages, sendChat,
+    myPosition, setMyPosition, otherUsers, presenceList, chatMessages, sendChat,
     ROOM_WIDTH, ROOM_HEIGHT, AVATAR_SIZE, myMeta, updateIdentity, setMovement,
     globalMusic, setGlobalMusic, isMoving,
     broadcastLoungePDF,
     activeEmotes,       
     sendEmote,
+    broadcastLoungeBuff,
   } = useLounge({ loungeCode: code, user })
 
   // Camera follow
@@ -1190,29 +1206,34 @@ const {
     </div>
   )
 
-  // ── Room Canvas ────────────────────────────────────────────────────
+  // ── Room Canvas ────────────────────────────────────
   const RoomCanvas = (
-    <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative' }}>
-
-      {/* D-Pad / Joystick — outside the scroll container so camera-follow
-          (el.scrollLeft / el.scrollTop) never moves it off-screen */}
+    <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative', background:'#09090b' }}>
+      {/* D-Pad / Joystick for touch / mobile */}
       <div className="dpad-zone">
         <VirtualJoystick setMovement={setMovement} />
       </div>
 
-      {/* Scrollable map — camera tracks player */}
-      <div ref={scrollViewRef} className="hide-scroll" style={{ flex:1, position:'relative', overflow:'auto', background:'#000', outline:'none' }}>
+      {/* Living Interactive Game Room */}
+      <LoungeGameRoom
+        myPosition={myPosition}
+        setMyPosition={setMyPosition}
+        otherUsers={otherUsers}
+        myMeta={myMeta}
+        isMoving={isMoving}
+        setMovement={setMovement}
+        activeEmotes={activeEmotes}
+        chatMessages={chatMessages}
+        onOpenFlashcards={() => setShowFlashcardModal(true)}
+        onOpenQuiz={() => router.push(`/quiz?from=${code}`)}
+        onOpenMusic={() => setShowMusicInput(true)}
+        onOpenPomodoro={() => setShowPomodoroModal(true)}
+        onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+        onBroadcastBuff={broadcastLoungeBuff}
+        token={token}
+      />
 
-        {/* Game world */}
-        <div style={{ position:'relative', width:ROOM_WIDTH, height:ROOM_HEIGHT, minWidth:ROOM_WIDTH, minHeight:ROOM_HEIGHT, backgroundImage:`url('/pixel-room.png')`, backgroundSize:'100% 100%', imageRendering:'pixelated', overflow:'visible' }}>
-          {Object.entries(otherUsers).map(([uid, data]) => (
-            <Avatar key={uid} x={data.x} y={data.y} displayName={data.displayName} avatarColor={data.avatarColor} sprite={data.sprite} size={AVATAR_SIZE} userId={uid} hasVoice={!!token} isIdle={data.isIdle} isMoving={data.isMoving||false} activeEmote={activeEmotes?.[uid] || null} />
-          ))}
-          <Avatar x={myPosition.x} y={myPosition.y} displayName={myMeta.displayName} avatarColor={myMeta.avatarColor} sprite={myMeta.sprite} isMe size={AVATAR_SIZE} userId={myMeta.userId} hasVoice={!!token} isIdle={myMeta.isIdle} isMoving={isMoving} activeEmote={activeEmotes?.[myMeta.userId] || null} />
-        </div>
-      </div>
-
-      {/* Chat panel — onBroadcastPDF correctly wired */}
+      {/* Chat panel */}
       {chatOpen && (
         <div className="chat-container">
           <ChatPanel
@@ -1247,6 +1268,50 @@ const {
   const pageContent = (
     <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:'#09090b', overflow:'hidden', color:'#fff', fontFamily:'system-ui,-apple-system,sans-serif' }}>
       <style>{ANIM_CSS}</style>
+
+      {/* Pomodoro Timer Modal */}
+      {showPomodoroModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:999, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <PomodoroTimer userId={user?.id} sessionId={null} onClose={() => setShowPomodoroModal(false)} />
+        </div>
+      )}
+
+      {/* Flashcard Modal */}
+      <FlashcardModal
+        isOpen={showFlashcardModal}
+        onClose={() => setShowFlashcardModal(false)}
+        cards={DEFAULT_CARDS}
+        onGainXP={() => addXP('quiz')}
+      />
+
+      {/* Hall of Fame / Leaderboard Modal */}
+      {showLeaderboardModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:999, background:'rgba(0,0,0,0.8)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:'#18181b', border:'1px solid rgba(255,255,255,0.12)', borderRadius:16, width:'100%', maxWidth:420, overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.8)' }}>
+            <div style={{ padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:18 }}>🏆</span>
+                <span style={{ fontSize:14, fontWeight:700, color:'#fff' }}>Study Hall of Fame</span>
+              </div>
+              <button onClick={() => setShowLeaderboardModal(false)} style={{ background:'transparent', border:'none', color:'#71717a', cursor:'pointer' }}>
+                {Ic.x('w-4 h-4')}
+              </button>
+            </div>
+            <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:8, maxHeight:360, overflowY:'auto' }}>
+              {presenceList.map((p, idx) => (
+                <div key={p.userId || idx} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'8px 12px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ width:22, textAlign:'center', fontSize:14 }}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx+1) + '.'}</span>
+                    <img src={p.sprite || '/sprites/char1.png'} alt="" style={{ width:24, height:24, objectFit:'contain', imageRendering:'pixelated' }} />
+                    <span style={{ fontSize:12, fontWeight:600, color:'#e4e4e7' }}>{p.displayName || 'Guest'}{p.userId === user?.id ? ' (you)' : ''}</span>
+                  </div>
+                  <span style={{ fontSize:11, color:'#fbbf24', fontWeight:700 }}>Lv.{p.userId === user?.id ? level : 1}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen screen share overlay — covers everything */}
       {showPresent && token && <ScreenShareOverlay onClose={() => setShowPresent(false)} />}

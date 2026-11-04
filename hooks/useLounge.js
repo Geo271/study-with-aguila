@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { generateLoungeQuiz, askAguila } from '@/app/actions/loungeQuiz'
+import { checkCollision, ROOM_SIZE, AVATAR_W, AVATAR_H, MOVE_SPEED } from '@/components/LoungeGameRoom'
 
-const ROOM_WIDTH   = 1200
-const ROOM_HEIGHT  = 680
-const AVATAR_SIZE  = 100
-const MOVE_SPEED   = 4
+const ROOM_WIDTH   = ROOM_SIZE
+const ROOM_HEIGHT  = ROOM_SIZE
+const AVATAR_SIZE  = AVATAR_H
 const BROADCAST_HZ = 20
 const EMOTE_DURATION = 2000 // ms before emote bubble disappears
 
@@ -22,20 +22,25 @@ function getDisplayName(email = '') { return email?.split('@')[0].slice(0, 12) |
 
 export function useLounge({ loungeCode, user }) {
   const channelRef        = useRef(null)
-  const initialPosition   = { x: ROOM_WIDTH/2 - AVATAR_SIZE/2, y: ROOM_HEIGHT/2 - AVATAR_SIZE/2 }
+  const initialPosition   = { x: ROOM_WIDTH / 2 - AVATAR_W / 2, y: 560 - AVATAR_H / 2 }
   const myPositionRef     = useRef(initialPosition)
   const keysRef           = useRef({})
   const animFrameRef      = useRef(null)
   const broadcastTimerRef = useRef(null)
   const movingRef         = useRef(false)
 
-  const [myPosition,   setMyPosition]   = useState(initialPosition)
+  const [myPosition,   setMyPositionState] = useState(initialPosition)
   const [otherUsers,   setOtherUsers]   = useState({})
   const [presenceList, setPresenceList] = useState([])
   const [isConnected,  setIsConnected]  = useState(false)
   const [isMoving,     setIsMoving]     = useState(false)
   const [isIdle,       setIsIdle]       = useState(false)
   const idleTimerRef = useRef(null)
+
+  const setMyPosition = useCallback((pos) => {
+    myPositionRef.current = pos
+    setMyPositionState(pos)
+  }, [])
 
   // 🌟 FIX 1: Identity Memory (Using SessionStorage so it clears on tab close)
   const [localName, setLocalName] = useState(() => {
@@ -110,10 +115,10 @@ export function useLounge({ loungeCode, user }) {
     if (!channelRef.current || broadcastTimerRef.current) return
     channelRef.current.send({
       type:'broadcast', event:'position',
-      payload:{ userId, x, y, isIdle:idleState, isMoving:moving },
+      payload:{ userId, x, y, isIdle:idleState, isMoving:moving, displayName:localName, sprite:localSprite },
     })
     broadcastTimerRef.current = setTimeout(() => { broadcastTimerRef.current = null }, 1000/BROADCAST_HZ)
-  }, [userId])
+  }, [userId, localName, localSprite])
 
   const updateIdentity = useCallback(async (newName, newSprite) => {
     if (!channelRef.current || !newName.trim()) return
@@ -221,6 +226,12 @@ export function useLounge({ loungeCode, user }) {
     channelRef.current.send({ type:'broadcast', event:'emote', payload:{ userId, emote } })
   }, [userId])
 
+  const broadcastLoungeBuff = useCallback((buffText) => {
+    if (!channelRef.current || !userId) return
+    channelRef.current.send({ type:'broadcast', event:'lounge_buff', payload:{ userId, displayName:localName, buffText } })
+  }, [userId, localName])
+
+  // Movement loop with AABB obstacle collisions & wall sliding
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA') return
@@ -239,16 +250,50 @@ export function useLounge({ loungeCode, user }) {
       const keys = keysRef.current
       let { x, y } = myPositionRef.current
       let moved = false
-      const maxX = ROOM_WIDTH - AVATAR_SIZE, maxY = ROOM_HEIGHT - AVATAR_SIZE
+      let dx = 0
+      let dy = 0
 
-      if (keys['w'] || keys['W'] || keys['ArrowUp'])    { y = Math.max(0, y-MOVE_SPEED); moved = true }
-      if (keys['s'] || keys['S'] || keys['ArrowDown'])  { y = Math.min(maxY, y+MOVE_SPEED); moved = true }
-      if (keys['a'] || keys['A'] || keys['ArrowLeft'])  { x = Math.max(0, x-MOVE_SPEED); moved = true }
-      if (keys['d'] || keys['D'] || keys['ArrowRight']) { x = Math.min(maxX, x+MOVE_SPEED); moved = true }
+      if (keys['w'] || keys['W'] || keys['ArrowUp'])    { dy -= MOVE_SPEED }
+      if (keys['s'] || keys['S'] || keys['ArrowDown'])  { dy += MOVE_SPEED }
+      if (keys['a'] || keys['A'] || keys['ArrowLeft'])  { dx -= MOVE_SPEED }
+      if (keys['d'] || keys['D'] || keys['ArrowRight']) { dx += MOVE_SPEED }
 
-      if (moved) { myPositionRef.current = { x, y }; setMyPosition({ x, y }) }
+      if (dx !== 0 || dy !== 0) {
+        if (dx !== 0 && dy !== 0) {
+          dx *= 0.7071
+          dy *= 0.7071
+        }
+        const nextX = x + dx
+        const nextY = y + dy
 
-      if (moved !== movingRef.current) { movingRef.current = moved; setIsMoving(moved) }
+        const collideBoth = checkCollision(nextX, nextY)
+        if (collideBoth) {
+          const collideX = checkCollision(nextX, y)
+          const collideY = checkCollision(x, nextY)
+
+          if (!collideX) {
+            x = nextX
+            moved = true
+          } else if (!collideY) {
+            y = nextY
+            moved = true
+          }
+        } else {
+          x = nextX
+          y = nextY
+          moved = true
+        }
+      }
+
+      if (moved) {
+        myPositionRef.current = { x, y }
+        setMyPositionState({ x, y })
+      }
+
+      if (moved !== movingRef.current) {
+        movingRef.current = moved
+        setIsMoving(moved)
+      }
 
       broadcastPosition(myPositionRef.current.x, myPositionRef.current.y, moved, isIdle)
       animFrameRef.current = requestAnimationFrame(loop)
@@ -290,7 +335,7 @@ export function useLounge({ loungeCode, user }) {
       if (payload.userId === userId) return
       setOtherUsers(prev => ({
         ...prev,
-        [payload.userId]: { ...(prev[payload.userId]||{}), x:payload.x, y:payload.y, isIdle:payload.isIdle, isMoving:payload.isMoving||false },
+        [payload.userId]: { ...(prev[payload.userId]||{}), x:payload.x, y:payload.y, isIdle:payload.isIdle, isMoving:payload.isMoving||false, displayName:payload.displayName, sprite:payload.sprite },
       }))
     })
 
@@ -307,6 +352,15 @@ export function useLounge({ loungeCode, user }) {
       if (payload.userId === userId) return
       setActiveEmotes(prev => ({ ...prev, [payload.userId]: payload.emote }))
       setTimeout(() => setActiveEmotes(prev => { const n={...prev}; delete n[payload.userId]; return n }), EMOTE_DURATION)
+    })
+
+    channel.on('broadcast', { event:'lounge_buff' }, ({ payload }) => {
+      if (payload.buffText) {
+        setChatMessages(prev => [
+          ...prev.slice(-99),
+          { userId:'system', displayName:'Lounge', text:`✨ ${payload.displayName || 'Someone'}: ${payload.buffText}`, ts:Date.now() }
+        ])
+      }
     })
 
     channel.on('broadcast', { event:'lounge_pdf' }, ({ payload }) => {
@@ -337,7 +391,7 @@ export function useLounge({ loungeCode, user }) {
   }, [setLoungeDocument])
 
   return {
-    myPosition, otherUsers, presenceList, chatMessages, sendChat,
+    myPosition, setMyPosition, otherUsers, presenceList, chatMessages, sendChat,
     isConnected, isMoving,
     ROOM_WIDTH, ROOM_HEIGHT, AVATAR_SIZE,
     myMeta: { userId, displayName:localName, avatarColor, sprite:localSprite, isIdle },
@@ -345,5 +399,6 @@ export function useLounge({ loungeCode, user }) {
     globalMusic, setGlobalMusic,
     loungeDocumentId, broadcastLoungePDF,
     activeEmotes, sendEmote,
+    broadcastLoungeBuff,
   }
 }
