@@ -120,7 +120,7 @@ export function useLounge({ loungeCode, user, is3DMode = false }) {
     broadcastTimerRef.current = setTimeout(() => { broadcastTimerRef.current = null }, 1000/BROADCAST_HZ)
   }, [userId, localName, localSprite])
 
-  const updateIdentity = useCallback(async (newName, newSprite) => {
+  const updateIdentity = useCallback(async (newName, newSprite, newAvatarConfig) => {
     if (!channelRef.current || !newName.trim()) return
     wakeUp()
     
@@ -130,9 +130,12 @@ export function useLounge({ loungeCode, user, is3DMode = false }) {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem(`lounge_name_${loungeCode}`, newName)
       sessionStorage.setItem(`lounge_sprite_${loungeCode}`, newSprite)
+      if (newAvatarConfig) {
+        sessionStorage.setItem(`lounge_avatar_${loungeCode}`, JSON.stringify(newAvatarConfig))
+      }
     }
 
-    await channelRef.current.track({ userId, displayName:newName, avatarColor, sprite:newSprite, joinedAt:new Date().toISOString() })
+    await channelRef.current.track({ userId, displayName:newName, avatarColor, sprite:newSprite, avatarConfig:newAvatarConfig, joinedAt:new Date().toISOString() })
   }, [channelRef, userId, avatarColor, wakeUp, loungeCode])
 
   const sendChat = useCallback(async (text, chatHistorySnapshot = []) => {

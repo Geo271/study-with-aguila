@@ -20,6 +20,7 @@ import LoungeGameRoom from '@/components/LoungeGameRoom'
 import Lounge3DRoom from '@/components/Lounge3DRoom'
 import PomodoroTimer from '@/components/PomodoroTimer'
 import FlashcardModal from '@/components/FlashcardModal'
+import AvatarCustomizerModal, { DEFAULT_AVATAR_CONFIG } from '@/components/AvatarCustomizerModal'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SVG ICONS
@@ -376,7 +377,7 @@ function EmotePicker({ onEmote, onClose }) {
 // CHAT PANEL
 // BUG FIX: onBroadcastPDF properly wired — no more DOM getElementById hack
 // ─────────────────────────────────────────────────────────────────────────────
-function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, mySprite, onUpdateIdentity, roomCode, onBroadcastPDF, onSendEmote, myXP, myLevel, onOpenQuiz, onClose }) {
+function ChatPanel({ presenceList, chatMessages, onSendChat, myUserId, myName, mySprite, onUpdateIdentity, roomCode, onBroadcastPDF, onSendEmote, myXP, myLevel, onOpenQuiz, onClose, onOpenAvatar }) {
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(myName)
@@ -1144,6 +1145,23 @@ export default function LoungePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [chatOpen, setChatOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false))
+  const [showAvatarModal, setShowAvatarModal] = useState(false)
+  const [avatarConfig, setAvatarConfig] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('aguila_avatar_custom')
+        if (saved) return JSON.parse(saved)
+      } catch {}
+    }
+    return DEFAULT_AVATAR_CONFIG
+  })
+
+  const handleSaveAvatar = (newConfig) => {
+    setAvatarConfig(newConfig)
+    if (updateIdentity) {
+      updateIdentity(myMeta?.displayName || 'Guest', myMeta?.sprite || '/sprites/char1.png', newConfig)
+    }
+  }
   const [showMusicInput, setShowMusicInput] = useState(false)
   const [musicLink, setMusicLink] = useState('')
   const [copied, setCopied] = useState(false)
@@ -1298,7 +1316,10 @@ const {
           onOpenMusic={() => setShowMusicInput(true)}
           onOpenPomodoro={() => setShowPomodoroModal(true)}
           onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+          onOpenScreenShare={() => setShowPresent(true)}
           onBroadcastBuff={broadcastLoungeBuff}
+          avatarConfig={avatarConfig}
+          chatOpen={chatOpen}
           token={token}
         />
       ) : (
@@ -1339,6 +1360,7 @@ const {
             myLevel={level}
             onOpenQuiz={setQuizOverlayId}
             onClose={() => setChatOpen(false)}
+            onOpenAvatar={() => setShowAvatarModal(true)}
           />
         </div>
       )}
@@ -1393,6 +1415,14 @@ const {
   const pageContent = (
     <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:'#09090b', overflow:'hidden', color:'#fff', fontFamily:'system-ui,-apple-system,sans-serif' }}>
       <style>{ANIM_CSS}</style>
+
+      {/* Avatar Customizer Modal */}
+      <AvatarCustomizerModal
+        isOpen={showAvatarModal}
+        onClose={() => setShowAvatarModal(false)}
+        currentConfig={avatarConfig}
+        onSave={handleSaveAvatar}
+      />
 
       {/* Pomodoro Timer Modal */}
       {showPomodoroModal && (
@@ -1462,6 +1492,9 @@ const {
         <div className="hide-scroll" style={{ display:'flex', alignItems:'center', gap:7, overflowX:'auto' }}>
           {token && roomOptions && <StartAudio label="Enable Audio" className="header-start-audio" />}
 
+          <button onClick={() => setShowAvatarModal(true)} style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.35)', borderRadius:8, padding:'4px 10px', color:'#c7d2fe', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+            <span>🎭 Avatar</span>
+          </button>
           <button onClick={() => setView3D(v => !v)} style={{ display:'flex', alignItems:'center', gap:5, background:view3D ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)', border:`1px solid ${view3D ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`, borderRadius:8, padding:'4px 10px', color:view3D ? '#a5b4fc' : '#a1a1aa', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
             <span>{view3D ? '🧊 3D Room' : '🕹️ 2D Retro'}</span>
           </button>

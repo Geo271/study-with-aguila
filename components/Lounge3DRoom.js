@@ -28,8 +28,10 @@ const ROOM_HALF_WIDTH = 18.0
 const ROOM_HALF_DEPTH = 14.0
 const PLAYER_SPEED = 0.18
 const ROT_SPEED = 0.22
+const JUMP_FORCE = 0.26
+const GRAVITY = 0.016
 
-// Teleport destination coordinates (Safe open landing spots in front of furniture)
+// Teleport destination coordinates
 export const TELEPORT_DESTINATIONS = {
   sofa: { x: -8.0, z: 5.0, name: 'Lounge Sofa', icon: '🛋️' },
   couch: { x: -8.0, z: 5.0, name: 'Lounge Sofa', icon: '🛋️' },
@@ -49,6 +51,8 @@ export const TELEPORT_DESTINATIONS = {
   fire: { x: -14.0, z: 0.0, name: 'Stone Fireplace', icon: '🔥' },
   fireplace: { x: -14.0, z: 0.0, name: 'Stone Fireplace', icon: '🔥' },
   hearth: { x: -14.0, z: 0.0, name: 'Stone Fireplace', icon: '🔥' },
+  tv: { x: 10.5, z: -10.5, name: 'Lounge Smart TV', icon: '📺' },
+  screen: { x: 10.5, z: -10.5, name: 'Lounge Smart TV', icon: '📺' },
   jukebox: { x: 14.0, z: 1.5, name: 'Lofi Jukebox', icon: '🎵' },
   music: { x: 14.0, z: 1.5, name: 'Lofi Jukebox', icon: '🎵' },
   hall: { x: 14.0, z: -4.5, name: 'Hall of Fame', icon: '🏆' },
@@ -146,7 +150,7 @@ function createSunflowerRugTexture() {
   return tex
 }
 
-/** Cute Chibi Eye Texture with dual glints */
+/** Chibi Cute Eye Texture with dual glints */
 function createChibiEyeTexture(color = '#6366f1') {
   if (typeof document === 'undefined') return null
   const canvas = document.createElement('canvas')
@@ -206,6 +210,47 @@ function createDogEyeTexture() {
   return tex
 }
 
+/** TV Screen Standby Texture */
+function createTVScreenTexture() {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 288
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  // Dark gradient background
+  const grad = ctx.createLinearGradient(0, 0, 512, 288)
+  grad.addColorStop(0, '#09090b')
+  grad.addColorStop(0.5, '#1e1b4b')
+  grad.addColorStop(1, '#09090b')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, 512, 288)
+
+  // Subtle scanlines
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.03)'
+  for (let y = 0; y < 288; y += 4) {
+    ctx.fillRect(0, y, 512, 1.5)
+  }
+
+  // TV Logo & Text
+  ctx.fillStyle = '#6366f1'
+  ctx.font = 'bold 32px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText('📺 LOUNGE DISPLAY', 256, 120)
+
+  ctx.fillStyle = '#a1a1aa'
+  ctx.font = '16px sans-serif'
+  ctx.fillText('Click TV or Press [E] to Present Screen', 256, 165)
+
+  ctx.fillStyle = '#4ade80'
+  ctx.font = '12px monospace'
+  ctx.fillText('● SYSTEM READY', 256, 205)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  return tex
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 3D INTERACTIVE STATIONS DATA (Configured for 36x28 room)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,9 +289,20 @@ const STATIONS_3D = [
     category: 'pet',
   },
   {
+    id: 'tv_screen',
+    name: 'Lounge Smart TV',
+    desc: 'Screen Presentation & Viewing',
+    icon: '📺',
+    x: 10.5,
+    z: -11.2,
+    radius: 4.0,
+    prompt: '[E] View / Present Screen',
+    category: 'tv',
+  },
+  {
     id: 'sofa_lounge',
     name: 'Lounge Sofa',
-    desc: 'Sit & Focus',
+    desc: 'Sit & Relax',
     icon: '🛋️',
     x: -8.0,
     z: 7.5,
@@ -383,7 +439,10 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     onOpenMusic,
     onOpenPomodoro,
     onOpenLeaderboard,
+    onOpenScreenShare,
     onBroadcastBuff,
+    avatarConfig = {},
+    chatOpen = true,
     token,
   },
   ref
@@ -396,10 +455,12 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
   const [snackToast, setSnackToast] = useState(null)
   const [soundOn, setSoundOn] = useState(true)
   const [screenPos, setScreenPos] = useState({ x: 0, y: 0 })
+  const [currentTime, setCurrentTime] = useState(() => (typeof window !== 'undefined' ? Date.now() : 0))
 
   // 3D Player State Ref
   const player3DRef = useRef({
     x: 0,
+    y: 0,
     z: 2.5,
     rotation: 0,
     targetX: null,
@@ -407,6 +468,8 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     isMoving: false,
     hopPhase: 0,
     sitState: false,
+    jumpVelocity: 0,
+    isGrounded: true,
   })
 
   // Keyboard continuous state ref
@@ -426,6 +489,10 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
   const targetRingMeshRef = useRef(null)
   const fireLightRef = useRef(null)
   const cameraRef = useRef(null)
+  const rendererRef = useRef(null)
+  const playerMaterialsRef = useRef({})
+  const playerAccGroupRef = useRef(null)
+  const tvMeshRef = useRef(null)
   const posSyncTimerRef = useRef(0)
 
   // Stand up helper: cleanly exits seat and pops onto open floor in front of sofa
@@ -460,17 +527,26 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     standUp,
   }), [standUp])
 
-  // Speech bubble tracker
+  // Periodic tick to automatically expire speech bubbles after 5.5 seconds
+  useEffect(() => {
+    const t = setInterval(() => setCurrentTime(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Speech bubble tracker (Disappears after 5.5s)
   const speechBubbles = useMemo(() => {
     const bubbles = {}
     for (let i = chatMessages.length - 1; i >= 0; i--) {
       const msg = chatMessages[i]
       if (msg?.userId && !bubbles[msg.userId] && msg.text && !msg.text.startsWith('[')) {
-        bubbles[msg.userId] = { text: msg.text, ts: msg.ts || i }
+        const msgTime = msg.ts || 0
+        if (currentTime === 0 || currentTime - msgTime < 5500) {
+          bubbles[msg.userId] = { text: msg.text, ts: msgTime }
+        }
       }
     }
     return bubbles
-  }, [chatMessages])
+  }, [chatMessages, currentTime])
 
   // Station trigger execution
   const executeStation = useCallback((station) => {
@@ -493,7 +569,11 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         if (onBroadcastBuff) onBroadcastBuff('🐶 Aguila pup is joyfully barking & wagging!')
         setTimeout(() => setDogHappy(false), 4500)
         break
+      case 'tv':
+        if (onOpenScreenShare) onOpenScreenShare()
+        break
       case 'seat':
+        // Sit down relaxingly WITHOUT automatically popping up pomodoro modal
         playSitSound()
         setIsSitting(true)
         player3DRef.current.sitState = true
@@ -502,7 +582,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         player3DRef.current.rotation = station.seatRot || 0
         player3DRef.current.targetX = null
         player3DRef.current.targetZ = null
-        if (onOpenPomodoro) onOpenPomodoro()
         break
       case 'snack':
         playSnackSound()
@@ -523,9 +602,9 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       default:
         break
     }
-  }, [onOpenFlashcards, onOpenPomodoro, onOpenMusic, onOpenLeaderboard, onBroadcastBuff])
+  }, [onOpenFlashcards, onOpenMusic, onOpenLeaderboard, onOpenScreenShare, onBroadcastBuff])
 
-  // Keyboard WASD & Arrow Key Movement Handler (Clean Input Protection)
+  // Keyboard WASD, Arrow Keys & Space Jump Handler
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -535,7 +614,23 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       const k = e.key.toLowerCase()
       keysDownRef.current[k] = true
 
-      if (k === 'e' || e.key === ' ') {
+      // Spacebar Jump
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (isSitting) {
+          standUp()
+          return
+        }
+        const pState = player3DRef.current
+        if (pState.isGrounded) {
+          pState.jumpVelocity = JUMP_FORCE
+          pState.isGrounded = false
+          playFootstepSound()
+        }
+        return
+      }
+
+      if (k === 'e') {
         if (isSitting) {
           standUp()
           e.preventDefault()
@@ -620,6 +715,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
     container.appendChild(renderer.domElement)
+    rendererRef.current = renderer
 
     // 2. Lighting Setup
     const ambientLight = new THREE.AmbientLight('#fff3e0', 0.65)
@@ -734,36 +830,58 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     scene.add(baseboardRight)
 
     // 5. Large Architectural Skylight / Window on Back Wall
-    const winFrameGeo = new THREE.BoxGeometry(7.0, 4.4, 0.2)
+    const winFrameGeo = new THREE.BoxGeometry(6.4, 4.2, 0.2)
     const winFrameMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3 })
     const winFrame = new THREE.Mesh(winFrameGeo, winFrameMat)
-    winFrame.position.set(0, 6.2, -ROOM_HALF_DEPTH + 0.05)
+    winFrame.position.set(-0.5, 6.2, -ROOM_HALF_DEPTH + 0.05)
     scene.add(winFrame)
 
-    const winGlassGeo = new THREE.PlaneGeometry(6.4, 3.8)
+    const winGlassGeo = new THREE.PlaneGeometry(5.8, 3.6)
     const winGlassMat = new THREE.MeshBasicMaterial({ color: '#bfdbfe' })
     const winGlass = new THREE.Mesh(winGlassGeo, winGlassMat)
-    winGlass.position.set(0, 6.2, -ROOM_HALF_DEPTH + 0.16)
+    winGlass.position.set(-0.5, 6.2, -ROOM_HALF_DEPTH + 0.16)
     scene.add(winGlass)
 
-    // 6. Grand Study Vault (3 Connected Bookcase Sections + Study Table)
+    // 6. Wall-Mounted Modern Flat-Screen Smart TV (Back Wall: X: 10.5, Z: -13.7)
+    const tvGroup = new THREE.Group()
+    tvGroup.position.set(10.5, 5.0, -ROOM_HALF_DEPTH + 0.2)
+
+    // TV Bezel Frame
+    const tvBezelMat = new THREE.MeshStandardMaterial({ color: '#09090b', metalness: 0.85, roughness: 0.2 })
+    const tvFrame = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.2, 0.16), tvBezelMat)
+    tvFrame.castShadow = true
+    tvGroup.add(tvFrame)
+
+    // TV Screen
+    const tvTex = createTVScreenTexture()
+    const tvScreenMat = new THREE.MeshBasicMaterial({ map: tvTex })
+    const tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(5.1, 2.9), tvScreenMat)
+    tvScreen.position.set(0, 0, 0.09)
+    tvGroup.add(tvScreen)
+    tvMeshRef.current = tvScreen
+
+    // TV Standby LED Indicator
+    const ledMat = new THREE.MeshBasicMaterial({ color: '#4ade80' })
+    const tvLed = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), ledMat)
+    tvLed.position.set(0, -1.52, 0.09)
+    tvGroup.add(tvLed)
+    scene.add(tvGroup)
+
+    // 7. Grand Study Vault (3 Connected Bookcase Sections + Study Table)
     const shelfWoodMat = new THREE.MeshStandardMaterial({ color: '#5c3a21', roughness: 0.6 })
     const bookColors = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0284c7', '#ea580c', '#e11d48']
 
-    // 3 Bookcases along back wall
     const shelfXPositions = [-12.5, -9.0, -5.5]
     shelfXPositions.forEach((sx) => {
       const bcGroup = new THREE.Group()
       bcGroup.position.set(sx, 0, -ROOM_HALF_DEPTH + 0.9)
 
-      // Back panel
       const bp = new THREE.Mesh(new THREE.BoxGeometry(3.2, 5.8, 0.12), shelfWoodMat)
       bp.position.set(0, 2.9, -0.45)
       bp.castShadow = true
       bp.receiveShadow = true
       bcGroup.add(bp)
 
-      // Side planks
       const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 5.8, 1.0), shelfWoodMat)
       sideL.position.set(-1.55, 2.9, 0)
       sideL.castShadow = true
@@ -774,7 +892,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       sideR.castShadow = true
       bcGroup.add(sideR)
 
-      // Top & Base
       const top = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.18, 1.05), shelfWoodMat)
       top.position.set(0, 5.8, 0)
       top.castShadow = true
@@ -785,7 +902,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       bot.castShadow = true
       bcGroup.add(bot)
 
-      // 4 Shelves with 3D Books
       const shelfYLevels = [1.35, 2.7, 4.05, 5.3]
       shelfYLevels.forEach((sy, tierIdx) => {
         const shelfPlank = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.1, 0.95), shelfWoodMat)
@@ -793,7 +909,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         shelfPlank.receiveShadow = true
         bcGroup.add(shelfPlank)
 
-        // 8 to 10 books per shelf
         const numBooks = 8
         for (let b = 0; b < numBooks; b++) {
           const bW = 0.18 + (b % 3) * 0.05
@@ -835,7 +950,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       scene.add(leg)
     })
 
-    // Laptops & Desk Lamp on study table
+    // Laptops & Desk Lamp
     const laptopMat = new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.7, roughness: 0.3 })
     const laptop1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.5), laptopMat)
     laptop1.position.set(-10.2, 1.38, -11.5)
@@ -845,7 +960,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     laptop2.position.set(-7.8, 1.38, -11.5)
     scene.add(laptop2)
 
-    // Brass Study Lamp
     const brassMat = new THREE.MeshStandardMaterial({ color: '#d97706', metalness: 0.85, roughness: 0.25 })
     const lampStem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.7, 8), brassMat)
     lampStem.position.set(-9.0, 1.65, -11.7)
@@ -854,7 +968,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     lampHood.position.set(-9.0, 2.0, -11.7)
     scene.add(lampHood)
 
-    // 7. Stone Fireplace & Reading Nook (Left Wall)
+    // 8. Stone Fireplace & Reading Nook (Left Wall)
     const fireplaceGroup = new THREE.Group()
     fireplaceGroup.position.set(-ROOM_HALF_WIDTH + 1.2, 0, 0)
 
@@ -888,7 +1002,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     }
     scene.add(fireplaceGroup)
 
-    // Fireplace Plush Armchair
+    // Reading Armchair
     const chairGroup = new THREE.Group()
     chairGroup.position.set(-14.5, 0, 2.2)
     chairGroup.rotation.y = -Math.PI / 3
@@ -905,28 +1019,28 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     chairGroup.add(chairBack)
     scene.add(chairGroup)
 
-    // 8. Barista Coffee & Boba Bar (Right-Back)
+    // 9. Barista Coffee & Boba Bar (Right-Back)
     const baristaGroup = new THREE.Group()
-    baristaGroup.position.set(5.0, 0, -12.5)
+    baristaGroup.position.set(4.5, 0, -12.5)
 
     const counterBaseMat = new THREE.MeshStandardMaterial({ color: '#271b12', roughness: 0.6 })
     const counterTopMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.25, metalness: 0.15 })
 
-    const cBase = new THREE.Mesh(new THREE.BoxGeometry(7.2, 1.8, 1.8), counterBaseMat)
+    const cBase = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.8, 1.8), counterBaseMat)
     cBase.position.set(0, 0.9, 0)
     cBase.castShadow = true
     cBase.receiveShadow = true
     baristaGroup.add(cBase)
 
-    const cTop = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.15, 2.2), counterTopMat)
+    const cTop = new THREE.Mesh(new THREE.BoxGeometry(6.9, 0.15, 2.2), counterTopMat)
     cTop.position.set(0, 1.85, 0)
     cTop.castShadow = true
     cTop.receiveShadow = true
     baristaGroup.add(cTop)
 
-    // 4 Turquoise Bar Stools in front of counter
+    // 3 Turquoise Bar Stools in front of counter
     const stoolClothMat = new THREE.MeshStandardMaterial({ color: '#0d9488', roughness: 0.5 })
-    ;[-2.4, -0.8, 0.8, 2.4].forEach((sx) => {
+    ;[-2.0, 0, 2.0].forEach((sx) => {
       const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.18, 16), stoolClothMat)
       seat.position.set(sx, 1.25, 1.6)
       seat.castShadow = true
@@ -938,7 +1052,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       baristaGroup.add(leg)
     })
 
-    // Chrome Espresso Machine with dials & portafilters
+    // Chrome Espresso Machine
     const chromeMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.92, roughness: 0.15 })
     const espBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.0), chromeMat)
     espBody.position.set(0, 2.5, -0.2)
@@ -952,7 +1066,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     espCup2.position.set(0.35, 1.95, 0.4)
     baristaGroup.add(espCup2)
 
-    // Pastry Display Glass Dome
+    // Pastry Dome
     const glassMat = new THREE.MeshPhysicalMaterial({
       color: '#ffffff',
       transmission: 0.9,
@@ -961,17 +1075,17 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       roughness: 0.05,
       ior: 1.5,
     })
-    const cloche = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), glassMat)
-    cloche.position.set(2.4, 1.95, 0.1)
+    const cloche = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), glassMat)
+    cloche.position.set(2.2, 1.95, 0.1)
     baristaGroup.add(cloche)
     scene.add(baristaGroup)
 
-    // 3D Steam Particles rising from espresso machine
+    // 3D Steam Particles
     const steamMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55 })
     const steamParts = []
     for (let s = 0; s < 12; s++) {
       const sm = new THREE.Mesh(new THREE.SphereGeometry(0.06 + Math.random() * 0.04, 8, 8), steamMat.clone())
-      sm.position.set(5.0 + (Math.random() - 0.5) * 0.4, 2.8 + Math.random() * 1.5, -12.5 + (Math.random() - 0.5) * 0.3)
+      sm.position.set(4.5 + (Math.random() - 0.5) * 0.4, 2.8 + Math.random() * 1.5, -12.5 + (Math.random() - 0.5) * 0.3)
       scene.add(sm)
       steamParts.push({
         mesh: sm,
@@ -982,39 +1096,34 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     }
     steamParticlesRef.current = steamParts
 
-    // 9. Velvet Sofa Lounge (Front-Left Zone: X: -8.0, Z: 8.5)
+    // 10. Velvet Sofa Lounge (Front-Left Zone: X: -8.0, Z: 8.5)
     const sofaGroup = new THREE.Group()
     sofaGroup.position.set(-8.0, 0, 8.5)
 
     const velvetMat = new THREE.MeshStandardMaterial({ color: '#f472b6', roughness: 0.55 })
     const velvetDarkMat = new THREE.MeshStandardMaterial({ color: '#db2777', roughness: 0.6 })
 
-    // Sofa Backrest
     const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(6.0, 1.4, 0.7), velvetDarkMat)
     sofaBack.position.set(0, 1.1, 1.1)
     sofaBack.castShadow = true
     sofaGroup.add(sofaBack)
 
-    // Sofa Seat Base
     const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.5, 2.0), velvetMat)
     sofaBase.position.set(0, 0.35, 0)
     sofaBase.castShadow = true
     sofaBase.receiveShadow = true
     sofaGroup.add(sofaBase)
 
-    // Left Armrest
     const armL = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 2.2), velvetDarkMat)
     armL.position.set(-2.8, 0.65, 0.1)
     armL.castShadow = true
     sofaGroup.add(armL)
 
-    // Right Armrest
     const armR = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 2.2), velvetDarkMat)
     armR.position.set(2.8, 0.65, 0.1)
     armR.castShadow = true
     sofaGroup.add(armR)
 
-    // Soft Pillows
     const pillowMat = new THREE.MeshStandardMaterial({ color: '#fed7aa', roughness: 0.7 })
     const pillow1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.25), pillowMat)
     pillow1.position.set(-2.2, 0.75, 0.7)
@@ -1026,7 +1135,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     pillow2.rotation.y = -0.25
     sofaGroup.add(pillow2)
 
-    // Low Wooden Coffee Table in front of sofa
     const coffeeTableMat = new THREE.MeshStandardMaterial({ color: '#92400e', roughness: 0.45 })
     const coffeeTable = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.45, 1.3), coffeeTableMat)
     coffeeTable.position.set(0, 0.25, -2.2)
@@ -1034,7 +1142,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     coffeeTable.receiveShadow = true
     sofaGroup.add(coffeeTable)
 
-    // Sunflower Rug under sofa corner
     const rugTex = createSunflowerRugTexture()
     const sunflowerRug = new THREE.Mesh(
       new THREE.CircleGeometry(4.2, 32),
@@ -1050,7 +1157,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     sofaGroup.add(sunflowerRug)
     scene.add(sofaGroup)
 
-    // 10. Banquet & Celebration Dining Table with Strawberry Cake (Front-Right Zone)
+    // 11. Banquet & Celebration Dining Table with Strawberry Cake (Front-Right Zone)
     const diningGroup = new THREE.Group()
     diningGroup.position.set(8.0, 0, 6.0)
 
@@ -1068,7 +1175,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     tableBase.castShadow = true
     diningGroup.add(tableBase)
 
-    // 4 Dining Chairs around table
+    // 4 Dining Chairs
     const chairWoodMat = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.6 })
     const chairAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5]
     chairAngles.forEach((ang) => {
@@ -1093,7 +1200,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       diningGroup.add(cg)
     })
 
-    // Double-Decker 3D Strawberry Shortcake
+    // Cake
     const cakeTier1 = new THREE.Mesh(
       new THREE.CylinderGeometry(1.0, 1.0, 0.5, 24),
       new THREE.MeshStandardMaterial({ color: '#fff1f2', roughness: 0.4 })
@@ -1110,7 +1217,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     cakeTier2.castShadow = true
     diningGroup.add(cakeTier2)
 
-    // Strawberry garnishes
     const strawbMat = new THREE.MeshStandardMaterial({ color: '#e11d48', roughness: 0.3 })
     for (let st = 0; st < 6; st++) {
       const sAng = (st * Math.PI * 2) / 6
@@ -1123,11 +1229,10 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     diningGroup.add(centerStrawb)
     scene.add(diningGroup)
 
-    // 11. Living 3D Aguila Pup & Play Zone (Far-Right Back: X: 14.5, Z: -10.5)
+    // 12. Living 3D Aguila Pup & Play Zone (Far-Right Back: X: 14.5, Z: -10.5)
     const petZoneGroup = new THREE.Group()
     petZoneGroup.position.set(14.5, 0, -10.5)
 
-    // Mint Pup Rug
     const dogRug = new THREE.Mesh(
       new THREE.CircleGeometry(1.8, 32),
       new THREE.MeshStandardMaterial({ color: '#a7f3d0', roughness: 0.85 })
@@ -1137,7 +1242,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     dogRug.receiveShadow = true
     petZoneGroup.add(dogRug)
 
-    // Little wooden doghouse behind pup
     const houseGroup = new THREE.Group()
     houseGroup.position.set(1.0, 0, -2.0)
     const houseBase = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.8, 2.0), shelfWoodMat)
@@ -1153,7 +1257,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     houseGroup.add(roof)
     petZoneGroup.add(houseGroup)
 
-    // Water bowl and chew bone
     const bowlMat = new THREE.MeshStandardMaterial({ color: '#38bdf8', metalness: 0.4, roughness: 0.3 })
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.16, 16), bowlMat)
     bowl.position.set(-1.2, 0.08, 0.8)
@@ -1169,36 +1272,30 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     const eyeTex = createDogEyeTexture()
     const dogEyeMat = new THREE.MeshBasicMaterial({ map: eyeTex })
 
-    // Dog Body
     const dogBody = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 16), dogCoatMat)
     dogBody.position.set(0, 0.65, 0)
     dogBody.scale.set(1, 0.85, 1.25)
     dogBody.castShadow = true
     dogGroup.add(dogBody)
 
-    // Dog Head
     const dogHead = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 16), dogCoatMat)
     dogHead.position.set(0, 1.25, 0.55)
     dogHead.castShadow = true
 
-    // Snout
     const snout = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), dogSnoutMat)
     snout.position.set(0, -0.1, 0.4)
     snout.scale.set(1, 0.75, 1.2)
     dogHead.add(snout)
 
-    // Nose
     const nose = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({ color: '#18181b' }))
     nose.position.set(0, 0.02, 0.72)
     dogHead.add(nose)
 
-    // Tongue
     const tongue = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.2), new THREE.MeshBasicMaterial({ color: '#fb7185' }))
     tongue.position.set(0, -0.18, 0.62)
     tongue.rotation.x = 0.25
     dogHead.add(tongue)
 
-    // 2 Distinct Shiny Eyes with Glints
     const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), dogEyeMat)
     eyeL.position.set(-0.25, 0.12, 0.44)
     dogHead.add(eyeL)
@@ -1207,7 +1304,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     eyeR.position.set(0.25, 0.12, 0.44)
     dogHead.add(eyeR)
 
-    // Floppy Ears
     const earL = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), dogEarMat)
     earL.scale.set(0.55, 1.25, 0.7)
     earL.rotation.z = -0.35
@@ -1220,7 +1316,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     earR.position.set(0.52, 0.1, 0)
     dogHead.add(earR)
 
-    // Red Collar with Golden Bell
     const collar = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.08, 8, 20), new THREE.MeshStandardMaterial({ color: '#ef4444' }))
     collar.position.set(0, -0.32, 0.1)
     collar.rotation.x = Math.PI / 2
@@ -1231,13 +1326,11 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     dogHead.add(bell)
     dogGroup.add(dogHead)
 
-    // Wagging Tail
     const dogTail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.04, 0.65, 8), dogCoatMat)
     dogTail.position.set(0, 0.85, -0.7)
     dogTail.rotation.x = -Math.PI / 3.5
     dogGroup.add(dogTail)
 
-    // Paws
     ;[
       [-0.35, -0.4], [0.35, -0.4],
       [-0.4, 0.35], [0.4, 0.35]
@@ -1257,7 +1350,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       tail: dogTail,
     }
 
-    // 12. Retro Illuminated Neon Jukebox (Right Wall: X: 16.5, Z: 1.5)
+    // 13. Retro Jukebox & Trophy Cabinet
     const jukeboxGroup = new THREE.Group()
     jukeboxGroup.position.set(16.5, 0, 1.5)
     jukeboxGroup.rotation.y = -Math.PI / 2
@@ -1280,7 +1373,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     jukeboxGroup.add(jukeLight)
     scene.add(jukeboxGroup)
 
-    // 13. Hall of Fame Trophy Showcase (Right Wall: X: 16.5, Z: -4.5)
     const trophyGroup = new THREE.Group()
     trophyGroup.position.set(16.5, 0, -4.5)
     trophyGroup.rotation.y = -Math.PI / 2
@@ -1290,7 +1382,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     cabinet.castShadow = true
     trophyGroup.add(cabinet)
 
-    // Golden Cup on shelf
     const trophyCup = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.1, 0.45, 12), brassMat)
     trophyCup.position.set(0, 1.8, 0.1)
     trophyGroup.add(trophyCup)
@@ -1310,27 +1401,34 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     scene.add(targetRing)
     targetRingMeshRef.current = targetRing
 
-    // 15. Local Player 3D Character Rig
+    // 15. Local Player 3D Character Rig with Customizer Colors & 3D Accessories
     const playerGroup = new THREE.Group()
     playerGroup.position.set(player3DRef.current.x, 0, player3DRef.current.z)
 
-    const chibiSkinMat = new THREE.MeshStandardMaterial({ color: '#fed7aa', roughness: 0.5 })
-    const chibiClothMat = new THREE.MeshStandardMaterial({ color: '#4f46e5', roughness: 0.6 })
-    const chibiHairMat = new THREE.MeshStandardMaterial({ color: '#18181b', roughness: 0.75 })
+    const customCloth = avatarConfig?.clothColor || myMeta.avatarColor || '#4f46e5'
+    const customHair = avatarConfig?.hairColor || '#18181b'
+    const customSkin = avatarConfig?.skinColor || '#fed7aa'
 
-    // Head
+    const chibiSkinMat = new THREE.MeshStandardMaterial({ color: customSkin, roughness: 0.5 })
+    const chibiClothMat = new THREE.MeshStandardMaterial({ color: customCloth, roughness: 0.6 })
+    const chibiHairMat = new THREE.MeshStandardMaterial({ color: customHair, roughness: 0.75 })
+
+    playerMaterialsRef.current = {
+      skin: chibiSkinMat,
+      cloth: chibiClothMat,
+      hair: chibiHairMat,
+    }
+
     const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 16), chibiSkinMat)
     headMesh.position.y = 1.35
     headMesh.castShadow = true
     playerGroup.add(headMesh)
 
-    // Hair
     const hairMesh = new THREE.Mesh(new THREE.SphereGeometry(0.58, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), chibiHairMat)
     hairMesh.position.y = 1.42
     hairMesh.castShadow = true
     playerGroup.add(hairMesh)
 
-    // Dual Eyes
     const pEyeTex = createChibiEyeTexture(myMeta.avatarColor || '#6366f1')
     if (pEyeTex) {
       const pEyeMat = new THREE.MeshBasicMaterial({ map: pEyeTex, transparent: true })
@@ -1342,13 +1440,11 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       playerGroup.add(eyeR)
     }
 
-    // Body
     const bodyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 0.7, 12), chibiClothMat)
     bodyMesh.position.y = 0.75
     bodyMesh.castShadow = true
     playerGroup.add(bodyMesh)
 
-    // Feet
     const footMat = new THREE.MeshStandardMaterial({ color: '#3f3f46', roughness: 0.4 })
     const footL = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), footMat)
     footL.position.set(-0.2, 0.14, 0.05)
@@ -1359,6 +1455,71 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
     footR.position.set(0.2, 0.14, 0.05)
     footR.scale.set(1, 0.6, 1.4)
     playerGroup.add(footR)
+
+    // Dynamic 3D Accessory Group on Character
+    const accGroup = new THREE.Group()
+    const buildAccessoryMesh = (accType) => {
+      while (accGroup.children.length > 0) {
+        accGroup.remove(accGroup.children[0])
+      }
+      if (accType === 'headphones') {
+        const hpMat = new THREE.MeshStandardMaterial({ color: '#09090b', metalness: 0.8, roughness: 0.2 })
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.06, 8, 24, Math.PI), hpMat)
+        band.position.set(0, 1.48, 0)
+        band.rotation.z = Math.PI
+        accGroup.add(band)
+        ;[-0.56, 0.56].forEach(x => {
+          const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.14, 16), hpMat)
+          cup.rotation.z = Math.PI / 2
+          cup.position.set(x, 1.35, 0)
+          accGroup.add(cup)
+        })
+      } else if (accType === 'cat_ears') {
+        const earMat = new THREE.MeshStandardMaterial({ color: customHair, roughness: 0.6 })
+        ;[-0.32, 0.32].forEach((x, idx) => {
+          const ear = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.35, 4), earMat)
+          ear.position.set(x, 1.95, 0.1)
+          ear.rotation.z = idx === 0 ? 0.3 : -0.3
+          ear.rotation.y = Math.PI / 4
+          accGroup.add(ear)
+        })
+      } else if (accType === 'wizard_hat') {
+        const wizMat = new THREE.MeshStandardMaterial({ color: '#581c87', roughness: 0.5 })
+        const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.06, 24), wizMat)
+        brim.position.set(0, 1.82, 0.05)
+        brim.rotation.x = -0.1
+        accGroup.add(brim)
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 16), wizMat)
+        cone.position.set(0, 2.38, -0.05)
+        cone.rotation.x = -0.2
+        accGroup.add(cone)
+      } else if (accType === 'crown') {
+        const crownMat = new THREE.MeshStandardMaterial({ color: '#eab308', metalness: 0.9, roughness: 0.2 })
+        const crownBand = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.22, 16, 1, true), crownMat)
+        crownBand.position.set(0, 1.96, 0)
+        accGroup.add(crownBand)
+        for (let p = 0; p < 5; p++) {
+          const ang = (p * Math.PI * 2) / 5
+          const pt = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), crownMat)
+          pt.position.set(Math.cos(ang) * 0.42, 2.15, Math.sin(ang) * 0.42)
+          accGroup.add(pt)
+        }
+      } else if (accType === 'glasses') {
+        const wireMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', metalness: 0.9, roughness: 0.2 })
+        ;[-0.18, 0.18].forEach(x => {
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.022, 8, 16), wireMat)
+          rim.position.set(x, 1.34, 0.56)
+          accGroup.add(rim)
+        })
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.02), wireMat)
+        bridge.position.set(0, 1.35, 0.56)
+        accGroup.add(bridge)
+      }
+    }
+    buildAccessoryMesh(avatarConfig?.accessory)
+    playerGroup.add(accGroup)
+    playerAccGroupRef.current = buildAccessoryMesh
+
     scene.add(playerGroup)
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1378,7 +1539,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         return
       }
 
-      // Left-click moves avatar
+      // Left-click moves avatar or interacts with TV
       if (e.button === 0) {
         if (isSitting) {
           standUp()
@@ -1389,6 +1550,17 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
         raycaster.setFromCamera(mouse, camera)
+
+        // Check if user clicked directly on the TV screen
+        if (tvMeshRef.current) {
+          const tvIntersects = raycaster.intersectObject(tvMeshRef.current)
+          if (tvIntersects.length > 0) {
+            playInteractSound()
+            if (onOpenScreenShare) onOpenScreenShare()
+            return
+          }
+        }
+
         const intersectionPoint = new THREE.Vector3()
         if (raycaster.ray.intersectPlane(floorPlane, intersectionPoint)) {
           const targetX = Math.max(-ROOM_HALF_WIDTH + 1, Math.min(ROOM_HALF_WIDTH - 1, intersectionPoint.x))
@@ -1459,6 +1631,17 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         keysDownRef.current = {}
       }
 
+      // Jump Physics (Gravity & Grounding)
+      if (!pState.isGrounded) {
+        pState.y += pState.jumpVelocity
+        pState.jumpVelocity -= GRAVITY
+        if (pState.y <= 0) {
+          pState.y = 0
+          pState.jumpVelocity = 0
+          pState.isGrounded = true
+        }
+      }
+
       // Continuous Keyboard Movement (Camera-Relative WASD & Arrow Keys)
       let moveX = 0
       let moveZ = 0
@@ -1507,7 +1690,6 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
           pState.z = nextZ
           pState.isMoving = true
         } else {
-          // If stuck inside an obstacle, find unstuck vector
           unstuckPlayer(pState)
         }
       } else if (pState.targetX !== null && pState.targetZ !== null && !pState.sitState) {
@@ -1550,15 +1732,15 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         pState.isMoving = false
       }
 
-      // Waddle & Hop Animation
-      if (pState.isMoving && !pState.sitState) {
+      // Waddle & Hop Animation & Jump Y Offset
+      if (pState.isMoving && !pState.sitState && pState.isGrounded) {
         pState.hopPhase += delta * 15
         playerGroup.position.y = Math.abs(Math.sin(pState.hopPhase)) * 0.16
         footL.position.z = Math.sin(pState.hopPhase) * 0.18
         footR.position.z = -Math.sin(pState.hopPhase) * 0.18
       } else {
         pState.hopPhase = 0
-        playerGroup.position.y = pState.sitState ? -0.22 : 0
+        playerGroup.position.y = pState.y + (pState.sitState ? -0.22 : 0)
         footL.position.z = 0.05
         footR.position.z = 0.05
       }
@@ -1568,7 +1750,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       playerGroup.rotation.y = pState.rotation
 
       // Sync position to other players
-      if (setMyPosition && (pState.isMoving || pState.sitState)) {
+      if (setMyPosition && (pState.isMoving || pState.sitState || !pState.isGrounded)) {
         posSyncTimerRef.current = (posSyncTimerRef.current || 0) + 1
         if (posSyncTimerRef.current % 4 === 0) {
           setMyPosition({ x: pState.x, z: pState.z })
@@ -1587,7 +1769,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       camera.lookAt(pState.x * 0.7, 1.2, pState.z * 0.7)
 
       // Project 3D Screen Coordinates for Floating HUD Name Tag
-      const projVector = new THREE.Vector3(pState.x, 2.5, pState.z)
+      const projVector = new THREE.Vector3(pState.x, pState.y + 2.5, pState.z)
       projVector.project(camera)
       const screenX = ((projVector.x + 1) / 2) * width
       const screenY = ((-projVector.y + 1) / 2) * height
@@ -1616,7 +1798,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         sp.mesh.material.opacity -= 0.009
         if (sp.mesh.position.y > 4.4 || sp.mesh.material.opacity <= 0.02) {
           sp.mesh.position.y = sp.initialY
-          sp.mesh.position.x = 5.0 + (Math.random() - 0.5) * 0.4
+          sp.mesh.position.x = 4.5 + (Math.random() - 0.5) * 0.4
           sp.mesh.scale.set(1, 1, 1)
           sp.mesh.material.opacity = 0.6
         }
@@ -1639,19 +1821,29 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
 
     animate()
 
-    // Handle Window Resize
+    // ─────────────────────────────────────────────────────────────────────────
+    // RESIZE OBSERVER (Eliminates the black space when chat collapses/expands!)
+    // ─────────────────────────────────────────────────────────────────────────
     const handleResize = () => {
       if (!container) return
       const w = container.clientWidth
       const h = container.clientHeight
-      camera.aspect = w / h
-      camera.updateProjectionMatrix()
-      renderer.setSize(w, h)
+      if (w > 0 && h > 0) {
+        camera.aspect = w / h
+        camera.updateProjectionMatrix()
+        renderer.setSize(w, h)
+      }
     }
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    resizeObserver.observe(container)
     window.addEventListener('resize', handleResize)
 
     return () => {
       cancelAnimationFrame(animId)
+      resizeObserver.disconnect()
       window.removeEventListener('resize', handleResize)
       domEl.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
@@ -1663,7 +1855,54 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
       }
       renderer.dispose()
     }
-  }, [myMeta.avatarColor, isSitting, standUp, setMyPosition, dogHappy])
+  }, [
+    myMeta.avatarColor,
+    isSitting,
+    standUp,
+    setMyPosition,
+    dogHappy,
+    onOpenScreenShare,
+    avatarConfig?.clothColor,
+    avatarConfig?.hairColor,
+    avatarConfig?.skinColor,
+    avatarConfig?.accessory,
+  ])
+
+  // Watch for chatOpen changes and trigger immediate canvas resize
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!mountRef.current || !cameraRef.current || !rendererRef.current) return
+      const w = mountRef.current.clientWidth
+      const h = mountRef.current.clientHeight
+      if (w > 0 && h > 0) {
+        cameraRef.current.aspect = w / h
+        cameraRef.current.updateProjectionMatrix()
+        rendererRef.current.setSize(w, h)
+      }
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [chatOpen])
+
+  // Update dynamic avatar colors when avatarConfig changes
+  useEffect(() => {
+    if (playerMaterialsRef.current.cloth && avatarConfig?.clothColor) {
+      playerMaterialsRef.current.cloth.color.set(avatarConfig.clothColor)
+    }
+    if (playerMaterialsRef.current.hair && avatarConfig?.hairColor) {
+      playerMaterialsRef.current.hair.color.set(avatarConfig.hairColor)
+    }
+    if (playerMaterialsRef.current.skin && avatarConfig?.skinColor) {
+      playerMaterialsRef.current.skin.color.set(avatarConfig.skinColor)
+    }
+    if (playerAccGroupRef.current) {
+      playerAccGroupRef.current(avatarConfig?.accessory)
+    }
+  }, [
+    avatarConfig?.clothColor,
+    avatarConfig?.hairColor,
+    avatarConfig?.skinColor,
+    avatarConfig?.accessory,
+  ])
 
   return (
     <div
@@ -1672,6 +1911,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         position: 'relative',
         width: '100%',
         height: '100%',
+        flex: 1,
         overflow: 'hidden',
         userSelect: 'none',
       }}
@@ -1680,6 +1920,12 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
         @keyframes toastPop {
           0% { opacity: 0; transform: translate(-50%, -10px) scale(0.92); }
           100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        @keyframes bubblePopAndFade {
+          0% { opacity: 0; transform: translateY(6px) scale(0.88); }
+          10% { opacity: 1; transform: translateY(0) scale(1); }
+          82% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-8px) scale(0.92); }
         }
       `}</style>
 
@@ -1807,22 +2053,24 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
           zIndex: 40,
         }}
       >
-        {/* Active Speech Bubble */}
+        {/* Active Speech Bubble with smooth pop and 5.5s fade-out */}
         {speechBubbles[myMeta.userId] && (
           <div
+            key={speechBubbles[myMeta.userId].ts}
             style={{
               background: 'rgba(15, 23, 42, 0.95)',
-              border: '1px solid rgba(99, 102, 241, 0.4)',
+              border: '1px solid rgba(99, 102, 241, 0.45)',
               borderRadius: 10,
-              padding: '5px 10px',
+              padding: '5px 12px',
               fontSize: 11,
               fontWeight: 600,
               color: '#fff',
               boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
-              maxWidth: 180,
+              maxWidth: 200,
               textAlign: 'center',
               wordBreak: 'break-word',
               marginBottom: 4,
+              animation: 'bubblePopAndFade 5.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
             }}
           >
             {speechBubbles[myMeta.userId].text}
@@ -1946,7 +2194,7 @@ const Lounge3DRoom = forwardRef(function Lounge3DRoom(
           whiteSpace: 'nowrap',
         }}
       >
-        🕹️ Walk: <span style={{ color: '#fff' }}>[W, A, S, D]</span> or click floor • Right-click drag to orbit • Chat: <span style={{ color: '#818cf8' }}>/tp &lt;location&gt;</span>
+        🕹️ Walk: <span style={{ color: '#fff' }}>[W, A, S, D]</span> • Jump: <span style={{ color: '#fff' }}>[Space]</span> • Right-click drag orbit • Chat: <span style={{ color: '#818cf8' }}>/tp &lt;location&gt;</span>
       </div>
     </div>
   )
