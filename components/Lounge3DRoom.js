@@ -10,15 +10,15 @@ import {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3D WORLD COORDINATE CONSTANTS
-// Room bounds: X [-10.5, 10.5], Z [-10.5, 10.5]
+// Room bounds: X [-11, 11], Z [-11, 11]
 // ─────────────────────────────────────────────────────────────────────────────
 const ROOM_HALF_WIDTH = 10.5
 const ROOM_HALF_DEPTH = 10.5
-const PLAYER_SPEED = 0.14
-const ROT_SPEED = 0.18
+const PLAYER_SPEED = 0.16
+const ROT_SPEED = 0.22
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROCEDURAL TEXTURE GENERATORS
+// PROCEDURAL CANVAS TEXTURES
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Polished warm oak hardwood floor planks */
@@ -30,22 +30,21 @@ function createWoodFloorTexture() {
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
-  // Base warm honey-oak tone
-  ctx.fillStyle = '#c89666'
+  // Base warm golden-honey tone
+  ctx.fillStyle = '#c59b6d'
   ctx.fillRect(0, 0, 512, 512)
 
-  // Planks
+  // Plank rows
   const plankH = 32
   const rows = 512 / plankH
   for (let r = 0; r < rows; r++) {
     const y = r * plankH
-    // Slight color variation per plank row
-    const shade = (Math.sin(r * 3.7) * 8).toFixed(0)
-    ctx.fillStyle = `rgba(0, 0, 0, ${0.03 + Math.abs(shade) / 100})`
+    const shade = (Math.sin(r * 2.8) * 0.05)
+    ctx.fillStyle = shade >= 0 ? `rgba(255, 255, 255, ${shade})` : `rgba(0, 0, 0, ${-shade})`
     ctx.fillRect(0, y, 512, plankH)
 
-    // Plank seam line
-    ctx.strokeStyle = '#8a5a36'
+    // Seam line
+    ctx.strokeStyle = '#8b5a2b'
     ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.moveTo(0, y)
@@ -53,9 +52,8 @@ function createWoodFloorTexture() {
     ctx.stroke()
 
     // Staggered vertical joints
-    const cols = 4
-    const offset = (r % 2) * 64
-    for (let c = 0; c < cols; c++) {
+    const offset = (r % 3) * 85
+    for (let c = 0; c < 5; c++) {
       const x = ((c * 128 + offset) % 512)
       ctx.beginPath()
       ctx.moveTo(x, y)
@@ -81,12 +79,12 @@ function createSunflowerRugTexture() {
   if (!ctx) return null
 
   const cx = 128, cy = 128
-  // Outer petals
+  // 16 Petals
   ctx.fillStyle = '#facc15'
   for (let i = 0; i < 16; i++) {
     const angle = (i * Math.PI * 2) / 16
-    const px = cx + Math.cos(angle) * 75
-    const py = cy + Math.sin(angle) * 75
+    const px = cx + Math.cos(angle) * 78
+    const py = cy + Math.sin(angle) * 78
     ctx.beginPath()
     ctx.arc(px, py, 34, 0, Math.PI * 2)
     ctx.fill()
@@ -95,7 +93,7 @@ function createSunflowerRugTexture() {
   // Inner ring
   ctx.fillStyle = '#eab308'
   ctx.beginPath()
-  ctx.arc(cx, cy, 68, 0, Math.PI * 2)
+  ctx.arc(cx, cy, 70, 0, Math.PI * 2)
   ctx.fill()
 
   // Center seed disc
@@ -104,10 +102,10 @@ function createSunflowerRugTexture() {
   ctx.arc(cx, cy, 48, 0, Math.PI * 2)
   ctx.fill()
 
-  // Seed texture dots
-  ctx.fillStyle = '#92400e'
-  for (let d = 0; d < 40; d++) {
-    const rad = Math.random() * 38
+  // Seed details
+  ctx.fillStyle = '#a16207'
+  for (let d = 0; d < 45; d++) {
+    const rad = Math.random() * 40
     const ang = Math.random() * Math.PI * 2
     ctx.fillRect(cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad, 3, 3)
   }
@@ -116,7 +114,7 @@ function createSunflowerRugTexture() {
   return tex
 }
 
-/** Chibi Cute Eye Texture */
+/** Chibi Cute Eye Texture with dual glints */
 function createChibiEyeTexture(color = '#6366f1') {
   if (typeof document === 'undefined') return null
   const canvas = document.createElement('canvas')
@@ -125,29 +123,29 @@ function createChibiEyeTexture(color = '#6366f1') {
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
-  // Sclera white
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, 128, 128)
 
-  // Large anime pupil
+  // Iris
   ctx.fillStyle = color
   ctx.beginPath()
-  ctx.arc(64, 64, 44, 0, Math.PI * 2)
+  ctx.arc(64, 64, 46, 0, Math.PI * 2)
   ctx.fill()
 
+  // Pupil
   ctx.fillStyle = '#0f172a'
   ctx.beginPath()
-  ctx.arc(64, 64, 26, 0, Math.PI * 2)
+  ctx.arc(64, 64, 28, 0, Math.PI * 2)
   ctx.fill()
 
-  // Specular gleam
+  // Catchlights
   ctx.fillStyle = '#ffffff'
   ctx.beginPath()
-  ctx.arc(50, 48, 12, 0, Math.PI * 2)
+  ctx.arc(50, 48, 14, 0, Math.PI * 2)
   ctx.fill()
 
   ctx.beginPath()
-  ctx.arc(76, 76, 6, 0, Math.PI * 2)
+  ctx.arc(78, 76, 7, 0, Math.PI * 2)
   ctx.fill()
 
   const tex = new THREE.CanvasTexture(canvas)
@@ -155,7 +153,7 @@ function createChibiEyeTexture(color = '#6366f1') {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3D INTERACTIVE STATIONS
+// 3D INTERACTIVE STATIONS REGISTRY
 // ─────────────────────────────────────────────────────────────────────────────
 const STATIONS_3D = [
   {
@@ -164,8 +162,8 @@ const STATIONS_3D = [
     desc: 'Flashcards & Quizzes',
     icon: '📚',
     x: -7.5,
-    z: -7.5,
-    radius: 2.8,
+    z: -8.0,
+    radius: 3.2,
     prompt: '[E] Open Study Vault',
     category: 'study',
   },
@@ -176,18 +174,18 @@ const STATIONS_3D = [
     icon: '☕',
     x: 1.5,
     z: -6.0,
-    radius: 2.6,
+    radius: 3.0,
     prompt: '[E] Brew Fresh Coffee',
     category: 'boost',
   },
   {
     id: 'petdoggo',
     name: 'Cozy Aguila Pup',
-    desc: 'Alive & Wiggling',
+    desc: 'Adorable & Wiggling',
     icon: '🐶',
-    x: 7.2,
+    x: 7.6,
     z: -6.5,
-    radius: 2.6,
+    radius: 3.0,
     prompt: '[E] Pet Aguila Doggo',
     category: 'pet',
   },
@@ -198,7 +196,7 @@ const STATIONS_3D = [
     icon: '🛋️',
     x: -6.0,
     z: 4.5,
-    radius: 2.8,
+    radius: 3.2,
     prompt: '[E] Sit on Sofa',
     category: 'seat',
     seatX: -6.0,
@@ -208,22 +206,33 @@ const STATIONS_3D = [
   {
     id: 'dining_cake',
     name: 'Strawberry Cake',
-    desc: 'Delicious study fuel',
+    desc: 'Sweet study fuel',
     icon: '🍰',
-    x: 4.5,
+    x: 5.0,
     z: 3.5,
-    radius: 2.6,
+    radius: 3.0,
     prompt: '[E] Eat Cake Slice',
     category: 'snack',
+  },
+  {
+    id: 'fireplace',
+    name: 'Stone Hearth',
+    desc: 'Warm fire glow',
+    icon: '🔥',
+    x: -10.0,
+    z: -1.0,
+    radius: 3.0,
+    prompt: '[E] Warm by Fireplace',
+    category: 'fire',
   },
   {
     id: 'jukebox',
     name: 'Lofi Jukebox',
     desc: 'Study soundtrack',
     icon: '🎵',
-    x: 8.5,
+    x: 9.0,
     z: 1.5,
-    radius: 2.4,
+    radius: 2.8,
     prompt: '[E] Change Music',
     category: 'music',
   },
@@ -232,9 +241,9 @@ const STATIONS_3D = [
     name: 'Hall of Fame',
     desc: 'Room records',
     icon: '🏆',
-    x: 8.5,
+    x: 9.0,
     z: -2.5,
-    radius: 2.4,
+    radius: 2.8,
     prompt: '[E] View Room Rank',
     category: 'rank',
   },
@@ -245,28 +254,31 @@ const STATIONS_3D = [
 // ─────────────────────────────────────────────────────────────────────────────
 const OBSTACLES_3D = [
   // Outer walls
-  { minX: -11.5, maxX: 11.5, minZ: -11.5, maxZ: -9.8 }, // Back wall
-  { minX: -11.5, maxX: 11.5, minZ: 9.8, maxZ: 11.5 },   // Front wall
-  { minX: -11.5, maxX: -9.8, minZ: -11.5, maxZ: 11.5 }, // Left wall
-  { minX: 9.8, maxX: 11.5, minZ: -11.5, maxZ: 11.5 },   // Right wall
+  { minX: -11.5, maxX: 11.5, minZ: -11.5, maxZ: -10.0 }, // Back wall
+  { minX: -11.5, maxX: 11.5, minZ: 10.2, maxZ: 12.0 },   // Front boundary
+  { minX: -12.0, maxX: -10.2, minZ: -11.5, maxZ: 11.5 }, // Left wall
+  { minX: 10.2, maxX: 12.0, minZ: -11.5, maxZ: 11.5 },   // Right wall
 
   // Bookshelf units
-  { minX: -9.5, maxX: -5.5, minZ: -9.8, maxZ: -7.0 },
+  { minX: -9.8, maxX: -5.2, minZ: -10.2, maxZ: -7.8 },
 
   // Barista counter
-  { minX: -2.5, maxX: 4.5, minZ: -7.5, maxZ: -5.0 },
+  { minX: -2.0, maxX: 5.0, minZ: -7.2, maxZ: -5.0 },
 
-  // Sofa lounge cluster
-  { minX: -8.5, maxX: -3.5, minZ: 2.5, maxZ: 6.5 },
+  // Velvet sofa cluster
+  { minX: -8.5, maxX: -3.5, minZ: 2.8, maxZ: 6.2 },
 
   // Dining table cluster
-  { minX: 2.5, maxX: 6.5, minZ: 1.5, maxZ: 5.5 },
+  { minX: 3.2, maxX: 6.8, minZ: 1.8, maxZ: 5.2 },
 
-  // Pet corner obstacle
-  { minX: 6.0, maxX: 8.5, minZ: -7.8, maxZ: -5.5 },
+  // Fireplace hearth
+  { minX: -11.2, maxX: -8.8, minZ: -2.5, maxZ: 0.5 },
+
+  // Pet corner
+  { minX: 6.5, maxX: 8.8, minZ: -7.6, maxZ: -5.4 },
 ]
 
-function checkCollision3D(x, z, radius = 0.55) {
+function checkCollision3D(x, z, radius = 0.5) {
   for (const obs of OBSTACLES_3D) {
     if (
       x + radius > obs.minX &&
@@ -304,10 +316,9 @@ export default function Lounge3DRoom({
   const [coffeeBuff, setCoffeeBuff] = useState(false)
   const [snackToast, setSnackToast] = useState(null)
   const [soundOn, setSoundOn] = useState(true)
-  const [zoomLevel, setZoomLevel] = useState(1.0)
   const [screenPos, setScreenPos] = useState({ x: 0, y: 0 })
 
-  // References for live 3D state
+  // 3D Player State Ref
   const player3DRef = useRef({
     x: 0,
     z: 2.5,
@@ -319,10 +330,22 @@ export default function Lounge3DRoom({
     sitState: false,
   })
 
-  const remoteMeshesRef = useRef(new Map())
+  // Keyboard continuous state ref
+  const keysDownRef = useRef({})
+
+  // Orbit camera drag state
+  const orbitRef = useRef({
+    isDragging: false,
+    prevX: 0,
+    prevY: 0,
+    azimuth: 0, // Angle around player
+    distance: 22,
+  })
+
   const dogMeshRef = useRef(null)
   const steamParticlesRef = useRef([])
   const targetRingMeshRef = useRef(null)
+  const fireLightRef = useRef(null)
   const cameraRef = useRef(null)
   const sceneRef = useRef(null)
   const rendererRef = useRef(null)
@@ -357,7 +380,7 @@ export default function Lounge3DRoom({
       case 'pet':
         playPetSound()
         setDogHappy(true)
-        if (onBroadcastBuff) onBroadcastBuff('🐶 Aguila doggo is joyfully wiggling & barking!')
+        if (onBroadcastBuff) onBroadcastBuff('🐶 Aguila pup is joyfully barking & wagging!')
         setTimeout(() => setDogHappy(false), 4500)
         break
       case 'seat':
@@ -373,8 +396,13 @@ export default function Lounge3DRoom({
         break
       case 'snack':
         playSnackSound()
-        setSnackToast('🍰 *crunch munch* Double-Layer Strawberry Cake! +5 Study Energy')
+        setSnackToast('🍰 *crunch munch* Strawberry Shortcake! +5 Study Energy')
         setTimeout(() => setSnackToast(null), 3500)
+        break
+      case 'fire':
+        playInteractSound()
+        setSnackToast('🔥 Warm crackling fireplace cozy focus!')
+        setTimeout(() => setSnackToast(null), 3000)
         break
       case 'music':
         if (onOpenMusic) onOpenMusic()
@@ -387,12 +415,14 @@ export default function Lounge3DRoom({
     }
   }, [onOpenFlashcards, onOpenPomodoro, onOpenMusic, onOpenLeaderboard, onBroadcastBuff])
 
-  // Keyboard navigation & interaction
+  // Continuous Keyboard WASD & Arrow Key Movement Handler
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      const k = e.key.toLowerCase()
+      keysDownRef.current[k] = true
 
-      if (e.key.toLowerCase() === 'e' || e.key === ' ') {
+      if (k === 'e' || e.key === ' ') {
         if (isSitting) {
           setIsSitting(false)
           player3DRef.current.sitState = false
@@ -410,16 +440,29 @@ export default function Lounge3DRoom({
         player3DRef.current.sitState = false
       }
 
-      if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(e.key)) {
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(k)) {
         if (isSitting) {
           setIsSitting(false)
           player3DRef.current.sitState = false
         }
+        // Cancel click-to-move destination when user presses keys
+        player3DRef.current.targetX = null
+        player3DRef.current.targetZ = null
       }
     }
 
+    const onKeyUp = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      const k = e.key.toLowerCase()
+      keysDownRef.current[k] = false
+    }
+
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
   }, [activeStation, isSitting, executeStation])
 
   // Footstep audio loop while walking
@@ -443,7 +486,7 @@ export default function Lounge3DRoom({
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // THREE.JS INITIALIZATION & SCENE RIGGING
+  // THREE.JS INITIALIZATION & EXPANDED 3D SCENE RIG
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const container = mountRef.current
@@ -452,18 +495,18 @@ export default function Lounge3DRoom({
     const width = container.clientWidth
     const height = container.clientHeight
 
-    // 1. Scene & Camera (Isometric 2.5D Angle)
+    // 1. Scene & Isometric Perspective Camera
     const scene = new THREE.Scene()
     sceneRef.current = scene
-    scene.background = new THREE.Color(0x0f1117)
-    scene.fog = new THREE.FogExp2(0x0f1117, 0.018)
+    scene.background = new THREE.Color(0x0e1117)
+    scene.fog = new THREE.FogExp2(0x0e1117, 0.015)
 
-    const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 120)
-    camera.position.set(0, 16, 20)
-    camera.lookAt(0, 0, 0)
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 140)
+    camera.position.set(0, 17, 22)
+    camera.lookAt(0, 0.5, 0)
     cameraRef.current = camera
 
-    // 2. WebGL Renderer with Shadows & Tone Mapping
+    // 2. WebGL Renderer with Soft PCF Shadows
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
@@ -472,44 +515,46 @@ export default function Lounge3DRoom({
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.3
+    renderer.toneMappingExposure = 1.35
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
-    // 3. Cozy Studio Lighting Rig
-    const ambientLight = new THREE.AmbientLight(0xfff7ed, 1.4)
+    // 3. Studio Lighting Rig
+    const ambientLight = new THREE.AmbientLight(0xfff7ed, 1.45)
     scene.add(ambientLight)
 
-    // Warm Sunbeam Directional Key Light
-    const sunLight = new THREE.DirectionalLight(0xfef08a, 1.9)
-    sunLight.position.set(12, 18, 8)
+    // Warm Sunbeam Key Light
+    const sunLight = new THREE.DirectionalLight(0xfef08a, 2.0)
+    sunLight.position.set(14, 20, 10)
     sunLight.castShadow = true
     sunLight.shadow.mapSize.width = 1024
     sunLight.shadow.mapSize.height = 1024
     sunLight.shadow.camera.near = 0.5
-    sunLight.shadow.camera.far = 45
-    sunLight.shadow.camera.left = -16
-    sunLight.shadow.camera.right = 16
-    sunLight.shadow.camera.top = 16
-    sunLight.shadow.camera.bottom = -16
-    sunLight.shadow.bias = -0.0005
+    sunLight.shadow.camera.far = 50
+    sunLight.shadow.camera.left = -18
+    sunLight.shadow.camera.right = 18
+    sunLight.shadow.camera.top = 18
+    sunLight.shadow.camera.bottom = -18
+    sunLight.shadow.bias = -0.0004
     scene.add(sunLight)
 
-    // Soft sky-blue bounce fill
-    const fillLight = new THREE.DirectionalLight(0xbfdbfe, 0.6)
-    fillLight.position.set(-14, 8, -10)
+    // Sky-blue bounce fill
+    const fillLight = new THREE.DirectionalLight(0xbfdbfe, 0.65)
+    fillLight.position.set(-14, 10, -10)
     scene.add(fillLight)
 
-    // Warm Golden Pendant Point Lights
-    const cafeLight = new THREE.PointLight(0xf59e0b, 1.5, 12, 1.5)
-    cafeLight.position.set(1.5, 4.5, -6.0)
+    // Barista Cafe Amber Point Light
+    const cafeLight = new THREE.PointLight(0xf59e0b, 1.8, 14, 1.4)
+    cafeLight.position.set(1.5, 4.8, -6.0)
     scene.add(cafeLight)
 
-    const tableLight = new THREE.PointLight(0xfde047, 1.3, 10, 1.5)
-    tableLight.position.set(4.5, 4.2, 3.5)
-    scene.add(tableLight)
+    // Fireplace Flickering Point Light
+    const fireLight = new THREE.PointLight(0xf97316, 2.0, 12, 1.5)
+    fireLight.position.set(-9.5, 2.0, -1.0)
+    scene.add(fireLight)
+    fireLightRef.current = fireLight
 
     // 4. Procedural Textures & Materials
     const floorTexture = createWoodFloorTexture()
@@ -523,48 +568,36 @@ export default function Lounge3DRoom({
     })
 
     const matWall = new THREE.MeshStandardMaterial({
-      color: 0xfef9f3,
-      roughness: 0.7,
+      color: 0xfaf4ec,
+      roughness: 0.75,
       metalness: 0.02,
     })
 
+    const matOak = new THREE.MeshStandardMaterial({
+      color: 0x8a5229,
+      roughness: 0.42,
+    })
+
     const matBaseboard = new THREE.MeshStandardMaterial({
-      color: 0x8a5a36,
+      color: 0x6d3816,
       roughness: 0.4,
     })
 
-    const matVelvetSofa = new THREE.MeshStandardMaterial({
+    const matVelvetPink = new THREE.MeshStandardMaterial({
       color: 0xf472b6,
-      roughness: 0.6,
-      metalness: 0.05,
+      roughness: 0.65,
     })
 
-    const matOak = new THREE.MeshStandardMaterial({
-      color: 0x9a6538,
-      roughness: 0.45,
-    })
-
-    const matCounterTop = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+    const matCounterMarble = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
       roughness: 0.15,
       metalness: 0.1,
     })
 
     const matChrome = new THREE.MeshStandardMaterial({
       color: 0xe2e8f0,
-      metalness: 0.9,
-      roughness: 0.1,
-    })
-
-    const matGold = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      metalness: 0.75,
-      roughness: 0.25,
-    })
-
-    const matLeaf = new THREE.MeshStandardMaterial({
-      color: 0x15803d,
-      roughness: 0.4,
+      metalness: 0.92,
+      roughness: 0.12,
     })
 
     const matMint = new THREE.MeshStandardMaterial({
@@ -572,333 +605,477 @@ export default function Lounge3DRoom({
       roughness: 0.5,
     })
 
-    // 5. Floor & Architectural Walls
-    const floorGeo = new THREE.BoxGeometry(22, 0.4, 22)
-    const floorMesh = new THREE.Mesh(floorGeo, matWoodFloor)
+    const matLeaf = new THREE.MeshStandardMaterial({
+      color: 0x16a34a,
+      roughness: 0.35,
+    })
+
+    // 5. Floor & 3 Enclosing Walls (Back, Left, Right)
+    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(23, 0.4, 23), matWoodFloor)
     floorMesh.position.y = -0.2
     floorMesh.receiveShadow = true
     scene.add(floorMesh)
 
-    // Back Wall
-    const backWallGeo = new THREE.BoxGeometry(22, 8, 0.5)
-    const backWall = new THREE.Mesh(backWallGeo, matWall)
-    backWall.position.set(0, 4, -11)
+    // Back Wall (Z: -11.2)
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(23, 8.5, 0.5), matWall)
+    backWall.position.set(0, 4.25, -11.2)
     backWall.receiveShadow = true
     scene.add(backWall)
 
-    // Left Wall
-    const leftWallGeo = new THREE.BoxGeometry(0.5, 8, 22)
-    const leftWall = new THREE.Mesh(leftWallGeo, matWall)
-    leftWall.position.set(-11, 4, 0)
+    // Left Wall (X: -11.2)
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8.5, 23), matWall)
+    leftWall.position.set(-11.2, 4.25, 0)
     leftWall.receiveShadow = true
     scene.add(leftWall)
 
-    // Baseboards
-    const baseboardBack = new THREE.Mesh(new THREE.BoxGeometry(22, 0.6, 0.1), matBaseboard)
-    baseboardBack.position.set(0, 0.3, -10.7)
-    scene.add(baseboardBack)
+    // Right Wall (X: 11.2)
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8.5, 23), matWall)
+    rightWall.position.set(11.2, 4.25, 0)
+    rightWall.receiveShadow = true
+    scene.add(rightWall)
 
-    const baseboardLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 22), matBaseboard)
-    baseboardLeft.position.set(-10.7, 0.3, 0)
-    scene.add(baseboardLeft)
+    // Baseboards along all 3 walls
+    const baseBack = new THREE.Mesh(new THREE.BoxGeometry(23, 0.6, 0.15), matBaseboard)
+    baseBack.position.set(0, 0.3, -10.9)
+    scene.add(baseBack)
 
-    // Large Study Window on Back Wall
-    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(7, 4.5, 0.2), matBaseboard)
-    windowFrame.position.set(1.5, 4.5, -10.85)
+    const baseLeft = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 23), matBaseboard)
+    baseLeft.position.set(-10.9, 0.3, 0)
+    scene.add(baseLeft)
+
+    const baseRight = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 23), matBaseboard)
+    baseRight.position.set(10.9, 0.3, 0)
+    scene.add(baseRight)
+
+    // Large Study Window with Curtains
+    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 0.25), matBaseboard)
+    windowFrame.position.set(1.5, 4.8, -11.0)
     scene.add(windowFrame)
 
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: 0xe0f2fe,
-      roughness: 0.1,
-      metalness: 0.8,
-      emissive: 0x93c5fd,
-      emissiveIntensity: 0.45,
-    })
-    const glassPane = new THREE.Mesh(new THREE.PlaneGeometry(6.6, 4.1), glassMat)
-    glassPane.position.set(1.5, 4.5, -10.74)
+    const glassPane = new THREE.Mesh(
+      new THREE.PlaneGeometry(7.5, 4.5),
+      new THREE.MeshStandardMaterial({
+        color: 0xbae6fd,
+        roughness: 0.1,
+        metalness: 0.8,
+        emissive: 0x93c5fd,
+        emissiveIntensity: 0.5,
+      })
+    )
+    glassPane.position.set(1.5, 4.8, -10.85)
     scene.add(glassPane)
 
-    // 6. Rugs
-    // Sunflower Rug
+    // White Linen Curtains on sides
+    const curtainMat = new THREE.MeshStandardMaterial({ color: 0xfdf4ff, roughness: 0.8 })
+    const curtainL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 5.2, 0.4), curtainMat)
+    curtainL.position.set(-2.5, 4.8, -10.7)
+    scene.add(curtainL)
+
+    const curtainR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 5.2, 0.4), curtainMat)
+    curtainR.position.set(5.5, 4.8, -10.7)
+    scene.add(curtainR)
+
+    // 6. Rugs on Floor
     if (sunflowerTexture) {
-      const sunRugGeo = new THREE.CircleGeometry(2.4, 32)
-      const sunRugMat = new THREE.MeshStandardMaterial({
-        map: sunflowerTexture,
-        roughness: 0.8,
-      })
-      const sunRug = new THREE.Mesh(sunRugGeo, sunRugMat)
+      const sunRug = new THREE.Mesh(
+        new THREE.CircleGeometry(2.6, 32),
+        new THREE.MeshStandardMaterial({ map: sunflowerTexture, roughness: 0.85 })
+      )
       sunRug.rotation.x = -Math.PI / 2
-      sunRug.position.set(1.5, 0.02, -3.5)
+      sunRug.position.set(1.5, 0.02, -3.2)
       sunRug.receiveShadow = true
       scene.add(sunRug)
     }
 
-    // Cozy Sage Lounge Rug
     const sageRug = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.6, 3.6, 0.03, 32),
+      new THREE.CylinderGeometry(3.8, 3.8, 0.03, 32),
       new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.85 })
     )
     sageRug.position.set(-6.0, 0.015, 4.5)
-    sageRug.scale.set(1, 1, 0.75)
+    sageRug.scale.set(1, 1, 0.78)
     sageRug.receiveShadow = true
     scene.add(sageRug)
 
-    // Mint Pet Mat
-    const petMat = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.4, 1.4, 0.02, 32),
-      matMint
-    )
-    petMat.position.set(7.2, 0.015, -6.5)
-    petMat.receiveShadow = true
-    scene.add(petMat)
-
-    // 7. Bookshelf Unit (Study Vault)
+    // 7. OPEN BOOKCASE UNIT (Real Shelves & Visible 3D Colorful Books)
     const bookcase = new THREE.Group()
-    bookcase.position.set(-7.5, 0, -9.0)
+    bookcase.position.set(-7.5, 0, -8.8)
 
-    const shelfFrame = new THREE.Mesh(new THREE.BoxGeometry(4.2, 7.0, 1.2), matOak)
-    shelfFrame.position.y = 3.5
-    shelfFrame.castShadow = true
-    shelfFrame.receiveShadow = true
-    bookcase.add(shelfFrame)
+    // Thin back panel
+    const shelfBack = new THREE.Mesh(new THREE.BoxGeometry(4.4, 7.2, 0.15), matOak)
+    shelfBack.position.set(0, 3.6, -0.6)
+    bookcase.add(shelfBack)
 
-    // Shelves with 3D colorful books
-    const bookColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6, 0xec4899]
+    // Left and right uprights
+    const uprightL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 7.2, 1.2), matOak)
+    uprightL.position.set(-2.1, 3.6, 0)
+    uprightL.castShadow = true
+    bookcase.add(uprightL)
+
+    const uprightR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 7.2, 1.2), matOak)
+    uprightR.position.set(2.1, 3.6, 0)
+    uprightR.castShadow = true
+    bookcase.add(uprightR)
+
+    // 4 Horizontal Shelves
+    for (let s = 0; s < 5; s++) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.18, 1.2), matOak)
+      plank.position.set(0, s * 1.6 + 0.2, 0)
+      plank.castShadow = true
+      bookcase.add(plank)
+    }
+
+    // Colorful 3D Books standing on shelves
+    const bookColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6, 0xec4899, 0x06b6d4]
     for (let shelf = 0; shelf < 4; shelf++) {
-      const shelfY = 1.0 + shelf * 1.5
-      for (let b = 0; b < 12; b++) {
+      const shelfY = shelf * 1.6 + 0.3
+      for (let b = 0; b < 13; b++) {
         const bookW = 0.12 + (b % 3) * 0.04
-        const bookH = 0.85 + (b % 4) * 0.15
+        const bookH = 0.85 + (b % 4) * 0.18
         const bookMat = new THREE.MeshStandardMaterial({
           color: bookColors[(shelf * 3 + b) % bookColors.length],
-          roughness: 0.4,
+          roughness: 0.35,
         })
         const bookMesh = new THREE.Mesh(new THREE.BoxGeometry(bookW, bookH, 0.75), bookMat)
-        bookMesh.position.set(-1.6 + b * 0.28, shelfY + bookH / 2, 0.1)
+        bookMesh.position.set(-1.7 + b * 0.27, shelfY + bookH / 2, 0.05)
         bookMesh.castShadow = true
         bookcase.add(bookMesh)
       }
     }
+
+    // Glowing candle lantern on shelf
+    const lantern = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.25, 0.5, 12),
+      new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xf59e0b, emissiveIntensity: 0.8 })
+    )
+    lantern.position.set(1.4, 5.3, 0.2)
+    bookcase.add(lantern)
+
     scene.add(bookcase)
 
-    // 8. Barista Counter & Espresso Machine
+    // 8. Barista Counter & Pastry Display
     const counterGroup = new THREE.Group()
-    counterGroup.position.set(1.5, 0, -6.2)
+    counterGroup.position.set(1.5, 0, -6.0)
 
-    // Wooden bar base
-    const barBase = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.0, 1.6), matOak)
+    const barBase = new THREE.Mesh(new THREE.BoxGeometry(6.6, 2.0, 1.8), matOak)
     barBase.position.y = 1.0
     barBase.castShadow = true
     barBase.receiveShadow = true
     counterGroup.add(barBase)
 
-    // White marble countertop
-    const barTop = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.25, 2.0), matCounterTop)
+    const barTop = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.25, 2.2), matCounterMarble)
     barTop.position.y = 2.12
     barTop.castShadow = true
     barTop.receiveShadow = true
     counterGroup.add(barTop)
 
-    // Chrome Espresso Machine
-    const espressoMachine = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.0), matChrome)
-    espressoMachine.position.set(-1.4, 2.85, 0)
+    // Chrome Espresso Machine with Dials & Portafilters
+    const espressoMachine = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.3, 1.1), matChrome)
+    espressoMachine.position.set(-1.6, 2.9, 0)
     espressoMachine.castShadow = true
     counterGroup.add(espressoMachine)
 
-    // Teapot & mugs
-    const kettle = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.5, 16), matChrome)
-    kettle.position.set(1.2, 2.5, 0)
-    kettle.castShadow = true
-    counterGroup.add(kettle)
+    // Pastry Display Glass Dome
+    const glassDome = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.7, 0.7, 0.7, 16),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, roughness: 0.1 })
+    )
+    glassDome.position.set(1.6, 2.6, 0)
+    counterGroup.add(glassDome)
 
     // 3 Stools
     for (let s = -1; s <= 1; s++) {
-      const stoolGroup = new THREE.Group()
-      stoolGroup.position.set(s * 1.8, 0, 1.6)
+      const stool = new THREE.Group()
+      stool.position.set(s * 1.9, 0, 1.7)
 
       const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.2, 16), matMint)
       seat.position.y = 1.3
       seat.castShadow = true
-      stoolGroup.add(seat)
+      stool.add(seat)
 
       const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), matBaseboard)
       leg.position.y = 0.6
       leg.castShadow = true
-      stoolGroup.add(leg)
+      stool.add(leg)
 
-      counterGroup.add(stoolGroup)
+      counterGroup.add(stool)
     }
     scene.add(counterGroup)
 
-    // 9. Velvet Lounge Sofas
+    // 9. Velvet Lounge Sofas & Armchairs
     const sofaGroup = new THREE.Group()
     sofaGroup.position.set(-6.0, 0, 4.5)
 
-    // 3-seat Sofa
-    const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.7, 1.8), matVelvetSofa)
-    sofaBase.position.set(0, 0.5, 0)
+    const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.75, 1.8), matVelvetPink)
+    sofaBase.position.set(0, 0.55, 0)
     sofaBase.castShadow = true
     sofaGroup.add(sofaBase)
 
-    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.3, 0.5), matVelvetSofa)
-    sofaBack.position.set(0, 1.5, -0.65)
+    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.4, 0.55), matVelvetPink)
+    sofaBack.position.set(0, 1.6, -0.65)
     sofaBack.castShadow = true
     sofaGroup.add(sofaBack)
 
-    // Armrests
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.1, 1.8), matVelvetSofa)
-    armL.position.set(-2.0, 1.0, 0)
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.15, 1.8), matVelvetPink)
+    armL.position.set(-2.1, 1.05, 0)
     armL.castShadow = true
     sofaGroup.add(armL)
 
-    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.1, 1.8), matVelvetSofa)
-    armR.position.set(2.0, 1.0, 0)
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.15, 1.8), matVelvetPink)
+    armR.position.set(2.1, 1.05, 0)
     armR.castShadow = true
     sofaGroup.add(armR)
 
-    // Low wooden coffee table
-    const tableMesh = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 1.2), matOak)
-    tableMesh.position.set(0, 0.4, 1.8)
-    tableMesh.castShadow = true
-    sofaGroup.add(tableMesh)
+    const coffeeTable = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.6, 1.3), matOak)
+    coffeeTable.position.set(0, 0.45, 1.9)
+    coffeeTable.castShadow = true
+    sofaGroup.add(coffeeTable)
 
     scene.add(sofaGroup)
 
     // 10. Study Dining Table with Double-Decker Strawberry Cake
     const tableGroup = new THREE.Group()
-    tableGroup.position.set(4.5, 0, 3.5)
+    tableGroup.position.set(5.0, 0, 3.5)
 
-    const diningTableTop = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.15, 32), matCounterTop)
-    diningTableTop.position.y = 1.6
+    const diningTableTop = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 0.16, 32), matCounterMarble)
+    diningTableTop.position.y = 1.65
     diningTableTop.castShadow = true
     diningTableTop.receiveShadow = true
     tableGroup.add(diningTableTop)
 
-    const diningLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.5, 16), matOak)
+    const diningLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 1.55, 16), matOak)
     diningLeg.position.y = 0.8
     diningLeg.castShadow = true
     tableGroup.add(diningLeg)
 
-    // Detailed 3D Strawberry Cake
+    // Double-Decker Cake
     const cakeGroup = new THREE.Group()
-    cakeGroup.position.set(0, 1.68, 0)
+    cakeGroup.position.set(0, 1.73, 0)
 
-    // Bottom tier (vanilla sponge + pink frosting)
     const cakeBottom = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.8, 0.8, 0.45, 24),
+      new THREE.CylinderGeometry(0.85, 0.85, 0.45, 24),
       new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.3 })
     )
     cakeBottom.position.y = 0.22
     cakeBottom.castShadow = true
     cakeGroup.add(cakeBottom)
 
-    // Top tier
     const cakeTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5, 0.5, 0.35, 24),
+      new THREE.CylinderGeometry(0.52, 0.52, 0.35, 24),
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
     )
     cakeTop.position.y = 0.62
     cakeTop.castShadow = true
     cakeGroup.add(cakeTop)
 
-    // Strawberries on top
+    // Strawberries
     const berryMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.2 })
     for (let sb = 0; sb < 5; sb++) {
       const ang = (sb * Math.PI * 2) / 5
-      const berry = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), berryMat)
-      berry.position.set(Math.cos(ang) * 0.35, 0.84, Math.sin(ang) * 0.35)
+      const berry = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), berryMat)
+      berry.position.set(Math.cos(ang) * 0.36, 0.85, Math.sin(ang) * 0.36)
       cakeGroup.add(berry)
     }
     tableGroup.add(cakeGroup)
 
-    // 4 Dining Chairs
+    // 4 Wooden Chairs with backs
     for (let c = 0; c < 4; c++) {
       const ang = (c * Math.PI * 2) / 4
-      const chair = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 0.8), matOak)
-      chair.position.set(Math.cos(ang) * 2.8, 0.5, Math.sin(ang) * 2.8)
-      chair.castShadow = true
-      tableGroup.add(chair)
+      const chairGroup = new THREE.Group()
+      chairGroup.position.set(Math.cos(ang) * 2.8, 0, Math.sin(ang) * 2.8)
+      chairGroup.lookAt(tableGroup.position.x, 0, tableGroup.position.z)
+
+      const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.12, 0.85), matMint)
+      chairSeat.position.y = 1.0
+      chairSeat.castShadow = true
+      chairGroup.add(chairSeat)
+
+      const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.0, 0.1), matOak)
+      chairBack.position.set(0, 1.5, -0.38)
+      chairBack.castShadow = true
+      chairGroup.add(chairBack)
+
+      for (let l = 0; l < 4; l++) {
+        const lx = (l % 2 === 0 ? 0.35 : -0.35)
+        const lz = (l < 2 ? 0.35 : -0.35)
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.95, 8), matOak)
+        leg.position.set(lx, 0.5, lz)
+        leg.castShadow = true
+        chairGroup.add(leg)
+      }
+      tableGroup.add(chairGroup)
     }
     scene.add(tableGroup)
 
-    // 11. Living 3D Animated Aguila Doggo
+    // 11. Stone Fireplace Hearth on Left Wall
+    const fireplace = new THREE.Group()
+    fireplace.position.set(-10.2, 0, -1.0)
+
+    const hearthMantel = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 3.4, 3.4),
+      new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.9 })
+    )
+    hearthMantel.position.y = 1.7
+    hearthMantel.castShadow = true
+    fireplace.add(hearthMantel)
+
+    // Inner Fire Cave
+    const fireCave = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.8, 2.0),
+      new THREE.MeshBasicMaterial({ color: 0x1c1917 })
+    )
+    fireCave.position.set(0.25, 1.0, 0)
+    fireplace.add(fireCave)
+
+    // Glowing Fire Embers
+    const fireMesh = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.45),
+      new THREE.MeshBasicMaterial({ color: 0xf97316 })
+    )
+    fireMesh.position.set(0.25, 0.6, 0)
+    fireplace.add(fireMesh)
+    scene.add(fireplace)
+
+    // 12. ADORABLE 3D AGUILA PUPPY (TWO SPARKLING EYES, NO CYCLOPS!)
     const dogGroup = new THREE.Group()
-    dogGroup.position.set(7.2, 0, -6.5)
+    dogGroup.position.set(7.6, 0, -6.5)
 
-    const matDogFur = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.45 })
-    const matDogWhite = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.4 })
-    const matNose = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.2 })
+    // Cozy Quilted Pet Bed
+    const bedBorder = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.5, 1.5, 0.28, 24),
+      new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.6 })
+    )
+    bedBorder.position.y = 0.14
+    bedBorder.receiveShadow = true
+    dogGroup.add(bedBorder)
 
-    // Torso
-    const dogBody = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 16), matDogFur)
-    dogBody.scale.set(1.1, 0.85, 1.4)
-    dogBody.position.y = 0.6
+    const bedCushion = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.3, 1.3, 0.26, 24),
+      new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.7 })
+    )
+    bedCushion.position.y = 0.22
+    dogGroup.add(bedCushion)
+
+    const matGoldenFur = new THREE.MeshStandardMaterial({ color: 0xe69138, roughness: 0.42 })
+    const matSnoutCream = new THREE.MeshStandardMaterial({ color: 0xfffaea, roughness: 0.35 })
+    const matDarkNose = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.15 })
+
+    // Dog Torso
+    const dogBody = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 16), matGoldenFur)
+    dogBody.scale.set(1.1, 0.85, 1.35)
+    dogBody.position.set(0, 0.7, 0)
     dogBody.castShadow = true
     dogGroup.add(dogBody)
 
     // Head
-    const dogHead = new THREE.Mesh(new THREE.SphereGeometry(0.48, 16, 16), matDogFur)
-    dogHead.position.set(0, 1.1, 0.6)
+    const dogHead = new THREE.Mesh(new THREE.SphereGeometry(0.52, 18, 18), matGoldenFur)
+    dogHead.position.set(0, 1.25, 0.55)
     dogHead.castShadow = true
     dogGroup.add(dogHead)
 
-    // Snout
-    const dogSnout = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.35, 12), matDogWhite)
-    dogSnout.rotation.x = Math.PI / 2
-    dogSnout.position.set(0, 1.05, 0.95)
+    // Cute White Snout
+    const dogSnout = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.32, 0.42), matSnoutCream)
+    dogSnout.position.set(0, 1.12, 0.95)
     dogGroup.add(dogSnout)
 
-    const dogNose = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), matNose)
-    dogNose.position.set(0, 1.15, 1.12)
+    // Black Button Nose
+    const dogNose = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 10), matDarkNose)
+    dogNose.position.set(0, 1.24, 1.18)
     dogGroup.add(dogNose)
 
-    // Floppy Ears
-    const earL = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8), matDogFur)
-    earL.rotation.z = 0.5
-    earL.position.set(-0.42, 1.35, 0.55)
+    // Happy Pink Tongue
+    const dogTongue = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.08, 0.24),
+      new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.3 })
+    )
+    dogTongue.position.set(0, 0.98, 1.08)
+    dogGroup.add(dogTongue)
+
+    // ✨ TWO SYMMETRICAL SPARKLING EYES (FIXED CYCLOPS BUG!)
+    const matPupil = new THREE.MeshBasicMaterial({ color: 0x0f172a })
+    const matGlint = new THREE.MeshBasicMaterial({ color: 0xffffff })
+
+    const eyeLGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), matPupil)
+    eyeLGlobe.position.set(-0.25, 1.35, 0.95)
+    dogGroup.add(eyeLGlobe)
+
+    const eyeRGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), matPupil)
+    eyeRGlobe.position.set(0.25, 1.35, 0.95)
+    dogGroup.add(eyeRGlobe)
+
+    // White Glints in both eyes
+    const glintL = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), matGlint)
+    glintL.position.set(-0.22, 1.39, 1.04)
+    dogGroup.add(glintL)
+
+    const glintR = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), matGlint)
+    glintR.position.set(0.28, 1.39, 1.04)
+    dogGroup.add(glintR)
+
+    // Floppy Cute Ears
+    const earL = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.5, 8), matGoldenFur)
+    earL.rotation.z = 0.55
+    earL.position.set(-0.48, 1.55, 0.45)
     dogGroup.add(earL)
 
-    const earR = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8), matDogFur)
-    earR.rotation.z = -0.5
-    earR.position.set(0.42, 1.35, 0.55)
+    const earR = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.5, 8), matGoldenFur)
+    earR.rotation.z = -0.55
+    earR.position.set(0.48, 1.55, 0.45)
     dogGroup.add(earR)
 
-    // Wiggling Tail
-    const dogTail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.6, 8), matDogFur)
-    dogTail.rotation.x = -Math.PI / 4
-    dogTail.position.set(0, 0.8, -0.9)
+    // Red Collar with Golden Bell
+    const collar = new THREE.Mesh(
+      new THREE.TorusGeometry(0.44, 0.08, 8, 24),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
+    )
+    collar.rotation.x = Math.PI / 2
+    collar.position.set(0, 0.98, 0.45)
+    dogGroup.add(collar)
+
+    const bell = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), matOak)
+    bell.position.set(0, 0.88, 0.92)
+    dogGroup.add(bell)
+
+    // Front Paws
+    const pawL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.35), matSnoutCream)
+    pawL.position.set(-0.35, 0.35, 0.85)
+    dogGroup.add(pawL)
+
+    const pawR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.35), matSnoutCream)
+    pawR.position.set(0.35, 0.35, 0.85)
+    dogGroup.add(pawR)
+
+    // Wiggling Fluffy Tail
+    const dogTail = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 0.65, 8), matGoldenFur)
+    dogTail.rotation.x = -Math.PI / 3.5
+    dogTail.position.set(0, 0.85, -0.95)
     dogGroup.add(dogTail)
 
     dogMeshRef.current = { group: dogGroup, tail: dogTail, head: dogHead }
     scene.add(dogGroup)
 
-    // 12. 3D Steam Particles (from Espresso Machine)
+    // 13. 3D Steam Particles (from Espresso Machine)
     const steamGroup = new THREE.Group()
-    const steamMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.6,
-    })
+    const steamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })
     const steamGeo = new THREE.SphereGeometry(0.14, 8, 8)
     const steamParticles = []
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const p = new THREE.Mesh(steamGeo, steamMat.clone())
-      p.position.set(0.1 + Math.random() * 0.2, 3.0 + i * 0.25, -6.2)
+      p.position.set(-0.1 + Math.random() * 0.2, 3.0 + i * 0.25, -6.0)
       steamGroup.add(p)
       steamParticles.push({
         mesh: p,
         initialY: 3.0,
-        speed: 0.015 + Math.random() * 0.015,
+        speed: 0.016 + Math.random() * 0.015,
         drift: (Math.random() - 0.5) * 0.01,
       })
     }
     steamParticlesRef.current = steamParticles
     scene.add(steamGroup)
 
-    // 13. Animated Destination Target Ring
-    const targetRingGeo = new THREE.RingGeometry(0.4, 0.55, 32)
+    // 14. Animated Click Target Ring
+    const targetRingGeo = new THREE.RingGeometry(0.42, 0.6, 32)
     const targetRingMat = new THREE.MeshBasicMaterial({
-      color: 0x6366f1,
+      color: 0x818cf8,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0,
@@ -909,30 +1086,29 @@ export default function Lounge3DRoom({
     targetRingMeshRef.current = targetRing
     scene.add(targetRing)
 
-    // 14. Local Player 3D Character Avatar Rig
+    // 15. Local Player 3D Character Rig
     const playerGroup = new THREE.Group()
     playerGroup.position.set(player3DRef.current.x, 0, player3DRef.current.z)
 
     const eyeTex = createChibiEyeTexture(myMeta.avatarColor || '#6366f1')
 
-    // Chibi Head
+    // Head
     const headMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.55, 18, 18),
-      new THREE.MeshStandardMaterial({ color: 0xffedd5, roughness: 0.4 })
+      new THREE.MeshStandardMaterial({ color: 0xffedd5, roughness: 0.38 })
     )
     headMesh.position.y = 1.55
     headMesh.castShadow = true
     playerGroup.add(headMesh)
 
-    // Cap / Hair
+    // Cap / Beanie
     const hairMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.58, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.8),
-      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 })
+      new THREE.SphereGeometry(0.58, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.7),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.55 })
     )
     hairMesh.position.y = 1.62
     playerGroup.add(hairMesh)
 
-    // Chibi Eyes
     if (eyeTex) {
       const eyeMat = new THREE.MeshBasicMaterial({ map: eyeTex })
       const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), eyeMat)
@@ -944,7 +1120,7 @@ export default function Lounge3DRoom({
       playerGroup.add(eyeR)
     }
 
-    // Body / Overalls
+    // Body
     const bodyMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(0.35, 0.45, 0.8, 16),
       new THREE.MeshStandardMaterial({ color: 0x4f46e5, roughness: 0.5 })
@@ -953,55 +1129,87 @@ export default function Lounge3DRoom({
     bodyMesh.castShadow = true
     playerGroup.add(bodyMesh)
 
-    // Feet / Shoes
-    const footL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.35), matBaseboard)
+    // Left & Right Feet
+    const footL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.38), matBaseboard)
     footL.position.set(-0.22, 0.12, 0)
     footL.castShadow = true
     playerGroup.add(footL)
 
-    const footR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.35), matBaseboard)
+    const footR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.38), matBaseboard)
     footR.position.set(0.22, 0.12, 0)
     footR.castShadow = true
     playerGroup.add(footR)
 
     scene.add(playerGroup)
 
-    // 15. Raycaster for 3D Click-to-Move
+    // 16. Raycaster & Orbit Drag Controls
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
 
     const onPointerDown = (e) => {
-      // Only handle primary click
-      if (e.button !== 0) return
-      const rect = renderer.domElement.getBoundingClientRect()
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      // Right Click or Alt-Click -> Orbit Camera Drag
+      if (e.button === 2 || e.altKey) {
+        orbitRef.current.isDragging = true
+        orbitRef.current.prevX = e.clientX
+        orbitRef.current.prevY = e.clientY
+        e.preventDefault()
+        return
+      }
 
-      raycaster.setFromCamera(mouse, camera)
-      const hits = raycaster.intersectObject(floorMesh)
+      // Left Click -> 3D Raycasted Click-to-Move
+      if (e.button === 0) {
+        const rect = renderer.domElement.getBoundingClientRect()
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
-      if (hits.length > 0) {
-        const point = hits[0].point
-        // Clamp destination to room interior
-        const targetX = Math.max(-ROOM_HALF_WIDTH + 1.2, Math.min(ROOM_HALF_WIDTH - 1.2, point.x))
-        const targetZ = Math.max(-ROOM_HALF_DEPTH + 1.2, Math.min(ROOM_HALF_DEPTH - 1.2, point.z))
+        raycaster.setFromCamera(mouse, camera)
+        const hits = raycaster.intersectObject(floorMesh)
 
-        player3DRef.current.targetX = targetX
-        player3DRef.current.targetZ = targetZ
-        player3DRef.current.sitState = false
-        setIsSitting(false)
+        if (hits.length > 0) {
+          const point = hits[0].point
+          const targetX = Math.max(-ROOM_HALF_WIDTH + 1.2, Math.min(ROOM_HALF_WIDTH - 1.2, point.x))
+          const targetZ = Math.max(-ROOM_HALF_DEPTH + 1.2, Math.min(ROOM_HALF_DEPTH - 1.2, point.z))
 
-        targetRing.position.set(targetX, 0.03, targetZ)
-        targetRing.scale.set(0.4, 0.4, 0.4)
-        targetRing.material.opacity = 0.95
+          player3DRef.current.targetX = targetX
+          player3DRef.current.targetZ = targetZ
+          player3DRef.current.sitState = false
+          setIsSitting(false)
+
+          targetRing.position.set(targetX, 0.03, targetZ)
+          targetRing.scale.set(0.4, 0.4, 0.4)
+          targetRing.material.opacity = 0.95
+        }
       }
     }
 
-    renderer.domElement.addEventListener('pointerdown', onPointerDown)
+    const onPointerMove = (e) => {
+      if (orbitRef.current.isDragging) {
+        const dx = e.clientX - orbitRef.current.prevX
+        orbitRef.current.azimuth += dx * 0.006
+        orbitRef.current.prevX = e.clientX
+        orbitRef.current.prevY = e.clientY
+      }
+    }
 
-    // 16. Animation Loop (60-120fps)
+    const onPointerUp = () => {
+      orbitRef.current.isDragging = false
+    }
+
+    const onWheel = (e) => {
+      e.preventDefault()
+      orbitRef.current.distance = Math.max(12, Math.min(32, orbitRef.current.distance + e.deltaY * 0.02))
+    }
+
+    const domEl = renderer.domElement
+    domEl.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    domEl.addEventListener('wheel', onWheel, { passive: false })
+    domEl.addEventListener('contextmenu', (e) => e.preventDefault())
+
+    // 17. 60-120fps Realtime Render & Physics Loop
     let animId
-    let clock = new THREE.Clock()
+    const clock = new THREE.Clock()
 
     const animate = () => {
       animId = requestAnimationFrame(animate)
@@ -1009,15 +1217,53 @@ export default function Lounge3DRoom({
       const time = clock.getElapsedTime()
 
       const pState = player3DRef.current
+      const keys = keysDownRef.current
 
-      // Target ring animation
+      // Target Ring Fadeout
       if (targetRing.material.opacity > 0.01) {
-        targetRing.scale.addScalar(0.04)
+        targetRing.scale.addScalar(0.035)
         targetRing.material.opacity -= 0.03
       }
 
-      // Smooth Click-to-Move Step
-      if (pState.targetX !== null && pState.targetZ !== null && !pState.sitState) {
+      // Continuous Keyboard Movement (WASD & Arrow Keys)
+      let moveX = 0
+      let moveZ = 0
+
+      if (keys['w'] || keys['arrowup']) moveZ -= 1
+      if (keys['s'] || keys['arrowdown']) moveZ += 1
+      if (keys['a'] || keys['arrowleft']) moveX -= 1
+      if (keys['d'] || keys['arrowright']) moveX += 1
+
+      if (moveX !== 0 || moveZ !== 0) {
+        pState.targetX = null
+        pState.targetZ = null
+        pState.sitState = false
+        setIsSitting(false)
+
+        const len = Math.sqrt(moveX * moveX + moveZ * moveZ)
+        const vx = (moveX / len) * PLAYER_SPEED
+        const vz = (moveZ / len) * PLAYER_SPEED
+
+        // Rotate smoothly towards movement vector
+        const targetRot = Math.atan2(vx, vz)
+        pState.rotation = THREE.MathUtils.lerp(pState.rotation, targetRot, ROT_SPEED)
+
+        const nextX = pState.x + vx
+        const nextZ = pState.z + vz
+
+        if (!checkCollision3D(nextX, nextZ)) {
+          pState.x = nextX
+          pState.z = nextZ
+          pState.isMoving = true
+        } else if (!checkCollision3D(nextX, pState.z)) {
+          pState.x = nextX
+          pState.isMoving = true
+        } else if (!checkCollision3D(pState.x, nextZ)) {
+          pState.z = nextZ
+          pState.isMoving = true
+        }
+      } else if (pState.targetX !== null && pState.targetZ !== null && !pState.sitState) {
+        // Click-to-Move Pathing
         const dx = pState.targetX - pState.x
         const dz = pState.targetZ - pState.z
         const dist = Math.sqrt(dx * dx + dz * dz)
@@ -1033,11 +1279,9 @@ export default function Lounge3DRoom({
           const vx = (dx / dist) * PLAYER_SPEED
           const vz = (dz / dist) * PLAYER_SPEED
 
-          // Target rotation towards motion
           const targetRot = Math.atan2(vx, vz)
           pState.rotation = THREE.MathUtils.lerp(pState.rotation, targetRot, ROT_SPEED)
 
-          // 3D Obstacle collision check with sliding
           const nextX = pState.x + vx
           const nextZ = pState.z + vz
 
@@ -1054,16 +1298,18 @@ export default function Lounge3DRoom({
             pState.isMoving = false
           }
         }
+      } else {
+        pState.isMoving = false
       }
 
-      // Avatar Walk Animation (Hop & Leg Swing)
+      // Walking Leg & Arm Hop Animation
       if (pState.isMoving && !pState.sitState) {
         pState.hopPhase += delta * 12
         playerGroup.position.y = Math.abs(Math.sin(pState.hopPhase)) * 0.16
         footL.position.z = Math.sin(pState.hopPhase) * 0.18
         footR.position.z = -Math.sin(pState.hopPhase) * 0.18
       } else {
-        playerGroup.position.y = pState.sitState ? -0.2 : 0
+        playerGroup.position.y = pState.sitState ? -0.22 : 0
         footL.position.z = 0
         footR.position.z = 0
       }
@@ -1072,45 +1318,56 @@ export default function Lounge3DRoom({
       playerGroup.position.z = pState.z
       playerGroup.rotation.y = pState.rotation
 
-      // Smooth Camera Follow
-      const targetCamX = pState.x * 0.6
-      const targetCamZ = pState.z * 0.6 + 18
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamX, 0.05)
-      camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, 0.05)
-      camera.lookAt(pState.x * 0.5, 1.2, pState.z * 0.5)
+      // Camera Orbit & Tracking Lerp
+      const orbit = orbitRef.current
+      const camDist = orbit.distance
+      const camAngle = orbit.azimuth
+      const camTargetX = pState.x + Math.sin(camAngle) * (camDist * 0.7)
+      const camTargetZ = pState.z + Math.cos(camAngle) * (camDist * 0.7)
+      const camTargetY = 14 + (camDist - 18) * 0.4
 
-      // Screen projection coordinates for 3D HUD billboard
-      const projVector = new THREE.Vector3(pState.x, 2.4, pState.z)
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, camTargetX, 0.06)
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, camTargetY, 0.06)
+      camera.position.z = THREE.MathUtils.lerp(camera.position.z, camTargetZ, 0.06)
+      camera.lookAt(pState.x * 0.7, 1.2, pState.z * 0.7)
+
+      // Project 3D Screen Coordinates for Floating HUD Labels
+      const projVector = new THREE.Vector3(pState.x, 2.5, pState.z)
       projVector.project(camera)
       const screenX = ((projVector.x + 1) / 2) * width
       const screenY = ((-projVector.y + 1) / 2) * height
       setScreenPos({ x: screenX, y: screenY })
 
-      // Animate Doggo (Breathing & Tail Wagging)
+      // Animate Doggo (Breathing, Tail Wagging, Happy Bouncing)
       if (dogMeshRef.current) {
         const { tail, head, group } = dogMeshRef.current
-        const wagSpeed = dogHappy ? 18 : 6
-        const wagAngle = dogHappy ? 0.7 : 0.35
+        const wagSpeed = dogHappy ? 20 : 6
+        const wagAngle = dogHappy ? 0.75 : 0.35
         tail.rotation.y = Math.sin(time * wagSpeed) * wagAngle
-        head.rotation.y = Math.sin(time * 2) * 0.1
-        group.scale.y = dogHappy ? 1 + Math.abs(Math.sin(time * 12)) * 0.2 : 1 + Math.sin(time * 2.5) * 0.03
+        head.rotation.y = Math.sin(time * 2.2) * 0.12
+        group.scale.y = dogHappy ? 1 + Math.abs(Math.sin(time * 12)) * 0.22 : 1 + Math.sin(time * 2.6) * 0.035
+      }
+
+      // Flickering Fireplace Light
+      if (fireLightRef.current) {
+        fireLightRef.current.intensity = 1.8 + Math.sin(time * 16) * 0.35 + Math.cos(time * 24) * 0.2
       }
 
       // Animate 3D Steam Particles
       steamParticlesRef.current.forEach((sp) => {
         sp.mesh.position.y += sp.speed
         sp.mesh.position.x += sp.drift
-        sp.mesh.scale.addScalar(0.006)
+        sp.mesh.scale.addScalar(0.007)
         sp.mesh.material.opacity -= 0.009
         if (sp.mesh.position.y > 4.4 || sp.mesh.material.opacity <= 0.02) {
           sp.mesh.position.y = sp.initialY
-          sp.mesh.position.x = 0.1 + Math.random() * 0.2
+          sp.mesh.position.x = -0.1 + Math.random() * 0.2
           sp.mesh.scale.set(1, 1, 1)
           sp.mesh.material.opacity = 0.6
         }
       })
 
-      // Proximity detection to nearest 3D station
+      // Proximity Detection to nearest 3D Station
       let nearest = null
       let minDist = Infinity
       for (const st of STATIONS_3D) {
@@ -1129,7 +1386,7 @@ export default function Lounge3DRoom({
 
     animate()
 
-    // Handle Resize
+    // Handle Window Resize
     const handleResize = () => {
       if (!container) return
       const w = container.clientWidth
@@ -1143,9 +1400,12 @@ export default function Lounge3DRoom({
     return () => {
       cancelAnimationFrame(animId)
       window.removeEventListener('resize', handleResize)
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown)
-      if (renderer.domElement && container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement)
+      domEl.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      domEl.removeEventListener('wheel', onWheel)
+      if (domEl && container.contains(domEl)) {
+        container.removeChild(domEl)
       }
       renderer.dispose()
     }
@@ -1164,12 +1424,8 @@ export default function Lounge3DRoom({
       }}
     >
       <style>{`
-        @keyframes float3DHUD {
-          0%, 100% { transform: translate(-50%, -100%) translateY(0); }
-          50% { transform: translate(-50%, -100%) translateY(-6px); }
-        }
         @keyframes toastPop {
-          0% { opacity: 0; transform: translate(-50%, -10px) scale(0.9); }
+          0% { opacity: 0; transform: translate(-50%, -10px) scale(0.92); }
           100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
         }
       `}</style>
@@ -1365,7 +1621,30 @@ export default function Lounge3DRoom({
         </div>
       </div>
 
-      {/* Floating Bottom Navigation Bar */}
+      {/* Top Controls Guide Hint */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(9, 9, 11, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 20,
+          padding: '3px 14px',
+          fontSize: 10,
+          color: '#a1a1aa',
+          fontWeight: 600,
+          backdropFilter: 'blur(8px)',
+          zIndex: 80,
+          pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        🕹️ Walk: <span style={{ color: '#fff' }}>[W, A, S, D]</span> or click floor • Right-click drag to orbit • Scroll to zoom
+      </div>
+
+      {/* Floating Bottom Quick-Nav Bar */}
       <div
         style={{
           position: 'absolute',
